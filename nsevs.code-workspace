@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": ".pytest_cache"
+		},
+		{
+			"path": ".venv"
+		},
+		{
+			"path": "Claude outputs"
+		},
+		{
+			"path": "docs"
+		},
+		{
+			"path": "src"
+		},
+		{
+			"path": "tests"
+		}
+	]
+}

@@ -63,7 +63,7 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | FastAPI `/health`, `/score`, event history, synthetic replay, dashboard | Implemented for local demo; no broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **83 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **87 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
@@ -73,7 +73,7 @@ interactive docs at `http://localhost:8000/docs`, or open the analyst dashboard 
 ## Current gaps and next work
 
 1. **Broader evaluation.** The fixed-seed combined run detects 4/4 synthetic scenarios,
-   with 90.7% event recall and 3.0% FPR. Across five generator seeds, mean FPR is 3.4%
+   with 90.7% event recall and 2.2% FPR. Across five generator seeds, mean FPR is 2.5%
    and event recall is 90.7%. Curated lower-amplitude/timing variations detect one scenario
    per attack type, with 58.3% event recall for automated trading. These checks reuse
    hand-designed signals and are not independent evidence; broader claims require

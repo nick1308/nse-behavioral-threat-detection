@@ -44,6 +44,21 @@ def test_unseen_device_on_a_later_event_is_flagged():
     assert features["is_new_ip"] == 0.0
 
 
+def test_login_authentication_method_features_require_a_successful_login():
+    extractor = RollingStatsFeatureExtractor()
+
+    mfa_features = extractor.extract(
+        _event(event_id="mfa-login", event_type="LOGIN", success=True, auth_method="mfa")
+    )
+    failed_password_features = extractor.extract(
+        _event(event_id="failed-password", event_type="LOGIN", success=False, auth_method="password")
+    )
+
+    assert mfa_features["login_uses_mfa"] == 1.0
+    assert mfa_features["login_uses_password"] == 0.0
+    assert failed_password_features["login_uses_password"] == 0.0
+
+
 def test_order_size_zscore_is_zero_until_enough_history_exists():
     extractor = RollingStatsFeatureExtractor()
     # First order: no history yet to compare against.

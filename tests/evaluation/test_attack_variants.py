@@ -4,7 +4,9 @@ from threat_detection.detection.zscore import ZScoreAnomalyDetector
 from threat_detection.evaluation.harness import evaluate
 from threat_detection.evaluation.variants import (
     AttackVariantEventSource,
+    BenignMfaTakeoverLikeEventSource,
     evaluate_attack_variants,
+    evaluate_benign_mfa_variation,
 )
 
 
@@ -32,6 +34,17 @@ def test_curated_variant_source_rejects_unknown_attack_type():
         AttackVariantEventSource("unknown")
 
 
+def test_constructed_benign_mfa_chain_is_counted_as_review_false_positives():
+    report = evaluate(
+        BenignMfaTakeoverLikeEventSource(),
+        detector=ZScoreAnomalyDetector(),
+    )
+
+    assert report["normal_events"] == 47
+    assert report["false_positives"] == 1
+    assert report["false_positive_rate"] == pytest.approx(1 / 47)
+
+
 def test_combined_pipeline_metrics_match_the_documented_variation_check():
     reports = evaluate_attack_variants()
 
@@ -40,3 +53,6 @@ def test_combined_pipeline_metrics_match_the_documented_variation_check():
     assert reports["automated_trading"]["event_recall"] == pytest.approx(7 / 12)
     assert all(report["recall"] == 1.0 for report in reports.values())
     assert all(report["false_positive_rate"] == 0.0 for report in reports.values())
+    benign_report = evaluate_benign_mfa_variation()
+    assert benign_report["false_positives"] == 2
+    assert benign_report["false_positive_rate"] == pytest.approx(2 / 47)

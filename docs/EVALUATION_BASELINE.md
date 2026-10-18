@@ -47,20 +47,23 @@ is calibrated to a 5% false-positive operating point on a second, separate
 900-event normal-only stream (seed 8). Ground-truth fields are stripped before
 both streams reach feature extraction; no labels select or weight training
 samples. Evaluation uses the same seed 42 and start time as the baseline.
-Event-kind indicators were added to the rolling feature vector so the model can
-interpret sparse order, cancellation, login, and API signals in context.
+Event-kind indicators and successful login authentication-method indicators
+are included in the rolling feature vector so the model can interpret sparse
+order, cancellation, login, and API signals in context. Same-session successful
+MFA is also retained as observable context for explanations; it does not erase
+an unusual-behavior review alert.
 
 | Measure | Z-score | Isolation Forest |
 |---|---:|---:|
 | Evaluation events | 986 | 986 |
 | Attack-scenario recall | 100.0% (4 / 4) | 50.0% (2 / 4) |
 | Attack-event recall | 88.4% (76 / 86) | 3.5% (3 / 86) |
-| False-positive rate | 0.0% (0 / 900) | 5.2% (47 / 900) |
+| False-positive rate | 0.0% (0 / 900) | 4.4% (40 / 900) |
 | Account takeover scenario recall | 100.0% (2 / 2) | 100.0% (2 / 2) |
 | API abuse scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
 | Automated trading scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
-| Mean per-event feature-plus-detector latency | 0.014 ms | 20.909 ms |
-| 95th percentile per-event feature-plus-detector latency | 0.035 ms | 24.924 ms |
+| Mean per-event feature-plus-detector latency | 0.014 ms | 20.756 ms |
+| 95th percentile per-event feature-plus-detector latency | 0.033 ms | 25.261 ms |
 
 The combined detector uses the larger of the z-score and Isolation Forest
 scores. It retains the z-score attack-type guess and includes explanations from
@@ -70,13 +73,13 @@ each layer that raised a score. Its fixed-seed result was:
 |---|---:|
 | Attack-scenario recall | 100.0% (4 / 4) |
 | Attack-event recall | 90.7% (78 / 86) |
-| False-positive rate | 3.0% (27 / 900) |
+| False-positive rate | 2.2% (20 / 900) |
 | Recall by attack type | 100.0% for each type |
-| Mean per-event feature-plus-detector latency | 20.382 ms |
-| 95th percentile per-event feature-plus-detector latency | 24.976 ms |
+| Mean per-event feature-plus-detector latency | 20.658 ms |
+| 95th percentile per-event feature-plus-detector latency | 27.004 ms |
 
 The forest's validation cutoff targeted 5% FPR; the measured evaluation FPR
-was 5.2%. Its recall is far below the 80% working target and misses API abuse
+was 4.4%. Its recall is far below the 80% working target and misses API abuse
 and automated trading in this run. This is evidence that the present feature
 representation and model configuration are not ready to replace the
 interpretable detector. Do not present the forest as an effective production
@@ -88,9 +91,9 @@ risk logic, not a claim of general broker-ready effectiveness.
 
 Five fixed evaluation seeds (42–46), with the same fixed fit and calibration
 streams, produced combined results of 100% scenario recall and 90.7% event
-recall on every seed. Per-seed FPR was 3.0%, 2.8%, 4.7%, 2.8%, and 3.7%; mean
-FPR was 3.4%. The standalone Forest had only 3.5% event recall in the fixed
-seed-42 comparison. These seeds alter generator
+recall on every seed. Per-seed combined FPR was 2.2%, 2.0%, 3.1%, 2.3%, and
+2.8%; mean FPR was 2.5%. The standalone Forest had only 3.5% event recall in
+the fixed seed-42 comparison. These seeds alter generator
 profile choices, not planted attack mechanisms; treat this as a stability check
 on one synthetic generator, not independent generalization evidence.
 
@@ -135,6 +138,16 @@ pairs with low timing variance before alerting; the first two pairs and the
 third order occur before enough evidence exists. The checks help identify
 brittle magnitudes and timing assumptions; four total scenarios do not
 establish expected broker performance.
+
+The same runner includes a constructed benign unusual-login/MFA chain. It
+relabels the takeover-shaped login/order events as normal and reports two
+combined review alerts in 47 events (4.3% for this single constructed case).
+This is a deliberate challenge case, not a representative false-positive-rate
+estimate. It shows that MFA context should inform the analyst explanation but
+does not automatically suppress behavior-based review. The feature extractor
+associates the MFA flag only with a matching device and session within its
+configured recent-login window. The Forest explanation lists observable
+context separately from model attribution.
 
 For attribution, the z-score layer alone had event recall of 50.0% for the
 takeover variation, 83.3% for API abuse, and 58.3% for automated trading. The

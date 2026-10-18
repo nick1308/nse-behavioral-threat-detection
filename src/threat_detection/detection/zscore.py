@@ -94,11 +94,19 @@ class ZScoreAnomalyDetector(AnomalyDetector):
                     f"order quantity {order_quantity_z:.1f}σ above the account's historical average"
                 )
             if takeover_context:
-                reasons.append(
-                    f"{order_reason} "
-                    "followed a recent login from an unseen device at an unusual hour"
-                    f"{market_context_suffix}"
-                )
+                if features.get("recent_login_mfa_verified", 0.0) >= 1.0:
+                    reasons.append(
+                        f"{order_reason} followed a recent login from an unseen device at an unusual hour; "
+                        "the normalized events also report MFA success in this session, so review this context "
+                        "before treating it as account takeover"
+                        f"{market_context_suffix}"
+                    )
+                else:
+                    reasons.append(
+                        f"{order_reason} "
+                        "followed a recent login from an unseen device at an unusual hour"
+                        f"{market_context_suffix}"
+                    )
             else:
                 reasons.append(
                     f"new device and login hour for this account, combined with {order_reason}"

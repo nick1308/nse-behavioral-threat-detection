@@ -61,6 +61,56 @@ def test_takeover_signal_carries_unusual_login_context_to_the_order():
     assert result["risk_score"] >= 50.0
 
 
+def test_mfa_context_is_explained_and_correlated_only_with_the_same_session():
+    def extract_order_features(order_session_id):
+        extractor = RollingStatsFeatureExtractor()
+        start = datetime(2026, 9, 10, 9, 0, tzinfo=timezone.utc)
+        extractor.extract(_event("login-home", start, "LOGIN", success=True))
+        for index in range(10):
+            extractor.extract(
+                _event(
+                    f"normal-order-{index}",
+                    start + timedelta(minutes=index + 1),
+                    "ORDER",
+                    order_value=1_000.0,
+                )
+            )
+        login_time = start.replace(hour=2)
+        extractor.extract(
+            _event(
+                "login-new-device-mfa",
+                login_time,
+                "LOGIN",
+                session_id="new-session",
+                device_id="device-new",
+                ip_address="185.0.0.1",
+                success=True,
+                auth_method="mfa",
+            )
+        )
+        return extractor.extract(
+            _event(
+                "oversized-order-after-mfa",
+                login_time + timedelta(minutes=1),
+                "ORDER",
+                session_id=order_session_id,
+                device_id="device-new",
+                ip_address="185.0.0.1",
+                order_value=100_000.0,
+            )
+        )
+
+    same_session_features = extract_order_features("new-session")
+    other_session_features = extract_order_features("different-session")
+    same_session_result = ZScoreAnomalyDetector().score(same_session_features)
+
+    assert same_session_features["recent_login_mfa_verified"] == 1.0
+    assert same_session_result["risk_score"] == 50.0
+    assert "MFA success in this session" in same_session_result["explanation"]
+    assert other_session_features["account_takeover_context"] == 0.0
+    assert other_session_features["recent_login_mfa_verified"] == 0.0
+
+
 def test_api_abuse_uses_the_same_client_baseline_and_clears_default_threshold():
     extractor = RollingStatsFeatureExtractor()
     detector = ZScoreAnomalyDetector()

@@ -87,7 +87,7 @@ class _AccountState:
     seen_ips: set[str] = field(default_factory=set)
     login_hours_seen: set[int] = field(default_factory=set)
     observed_login_hours: set[int] = field(default_factory=set)
-    recent_takeover_login: tuple[str, datetime] | None = None
+    recent_takeover_login: tuple[str, str, datetime, bool] | None = None
     # Timing values from all cancel events remain available for backward
     # compatibility and analysis; the detector uses only delays tied to a
     # preceding order from the same account.
@@ -155,15 +155,18 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             else 0.0
         )
         takeover_context = 0.0
+        recent_login_mfa_verified = 0.0
         if state.recent_takeover_login is not None:
-            login_device, login_timestamp = state.recent_takeover_login
+            login_device, login_session_id, login_timestamp, mfa_verified = state.recent_takeover_login
             seconds_since_login = (timestamp - login_timestamp).total_seconds()
             if (
                 0 <= seconds_since_login <= 300
                 and event_device_id is not None
                 and event_device_id == login_device
+                and event.get("session_id") == login_session_id
             ):
                 takeover_context = 1.0
+                recent_login_mfa_verified = 1.0 if mfa_verified else 0.0
             elif seconds_since_login < 0 or seconds_since_login > 300:
                 state.recent_takeover_login = None
 
@@ -179,6 +182,15 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             "event_type_is_api_request": 1.0 if event_type == "API_REQUEST" else 0.0,
             "event_type_is_device_change": 1.0 if event_type == "DEVICE_CHANGE" else 0.0,
             "event_type_is_logout": 1.0 if event_type == "LOGOUT" else 0.0,
+            "login_uses_password": (
+                1.0 if successful_login and event.get("auth_method") == "password" else 0.0
+            ),
+            "login_uses_token": (
+                1.0 if successful_login and event.get("auth_method") == "token" else 0.0
+            ),
+            "login_uses_mfa": (
+                1.0 if successful_login and event.get("auth_method") == "mfa" else 0.0
+            ),
             # 1.0 the very first time this account uses this device/IP, else 0.0 —
             # the account-takeover signal needs "unseen device" as a hard fact,
             # not a magnitude, so this is deliberately binary rather than a
@@ -196,6 +208,7 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             "is_new_active_hour": 0.0 if local_hour in state.login_hours_seen else 1.0,
             "is_unusual_login_hour": is_unusual_login_hour,
             "account_takeover_context": takeover_context,
+            "recent_login_mfa_verified": recent_login_mfa_verified,
             "is_regular_market_hours": 1.0 if is_regular_market_hours else 0.0,
             "order_size_zscore": 0.0,
             "api_request_rate_zscore": 0.0,
@@ -284,7 +297,12 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
                 and features["is_new_device"]
                 and is_unusual_login_hour
             ):
-                state.recent_takeover_login = (event_device_id, timestamp)
+                state.recent_takeover_login = (
+                    event_device_id,
+                    str(event.get("session_id", "")),
+                    timestamp,
+                    event.get("auth_method") == "mfa",
+                )
             state.observed_login_hours.add(local_hour)
 
         state.event_count += 1

@@ -182,8 +182,31 @@ class AttackVariantEventSource(EventSource):
         }
 
 
-def evaluate_attack_variants() -> dict[str, dict[str, Any]]:
-    """Evaluate curated variations through the current combined risk pipeline."""
+class BenignMfaTakeoverLikeEventSource(EventSource):
+    """A constructed legitimate-looking event chain with successful MFA.
+
+    The scenario intentionally overlaps account-takeover behavior signals so
+    the evaluation can reveal whether the scoring explanation preserves
+    relevant authentication context. Its labels describe this fixture only;
+    they are not inferred from real user activity.
+    """
+
+    def __init__(self, *, seed: int = 42) -> None:
+        self._source = AttackVariantEventSource("account_takeover", seed=seed)
+
+    def events(self) -> Iterator[dict[str, Any]]:
+        for source_event in self._source.events():
+            event = dict(source_event)
+            if event.get("is_attack"):
+                event["is_attack"] = False
+                event["attack_type"] = None
+                if event["event_type"] == "LOGIN":
+                    event["auth_method"] = "mfa"
+            yield event
+
+
+def _build_combined_detector() -> ZScoreIsolationForestEnsemble:
+    """Fit the demo ensemble with the same fixed normal-only streams as API."""
     normal_source = SyntheticEventSource(
         num_accounts=20,
         num_attack_accounts=0,
@@ -201,18 +224,36 @@ def evaluate_attack_variants() -> dict[str, dict[str, Any]]:
         calibration_event_source=calibration_source,
         target_false_positive_rate=0.05,
     )
-    ensemble = ZScoreIsolationForestEnsemble(ZScoreAnomalyDetector(), forest)
+    return ZScoreIsolationForestEnsemble(ZScoreAnomalyDetector(), forest)
+
+
+def evaluate_attack_variants(
+    *, detector: ZScoreIsolationForestEnsemble | None = None
+) -> dict[str, dict[str, Any]]:
+    """Evaluate curated variations through the current combined risk pipeline."""
+    ensemble = detector or _build_combined_detector()
     return {
         attack_type: evaluate(AttackVariantEventSource(attack_type), detector=ensemble)
         for attack_type in ATTACK_VARIANTS
     }
 
 
+def evaluate_benign_mfa_variation(
+    *, detector: ZScoreIsolationForestEnsemble | None = None
+) -> dict[str, Any]:
+    """Measure alerts on the constructed MFA-authenticated benign chain."""
+    ensemble = detector or _build_combined_detector()
+    return evaluate(BenignMfaTakeoverLikeEventSource(), detector=ensemble)
+
+
 def main() -> None:
     print("Curated synthetic attack-variation checks (not independent broker validation)")
-    for attack_type, report in evaluate_attack_variants().items():
+    detector = _build_combined_detector()
+    for attack_type, report in evaluate_attack_variants(detector=detector).items():
         print(f"\n{attack_type}")
         print_report(report)
+    print("\nConstructed benign unusual-login/MFA context check (not a population FPR estimate)")
+    print_report(evaluate_benign_mfa_variation(detector=detector))
 
 
 if __name__ == "__main__":

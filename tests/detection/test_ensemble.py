@@ -40,3 +40,23 @@ def test_ensemble_preserves_zero_score_explanation_when_neither_layer_alerts():
 
     assert result["risk_score"] == 0.0
     assert result["explanation"] == "no statistical alert"
+
+
+def test_forest_alert_lists_observable_login_context_without_claiming_attribution():
+    ensemble = ZScoreIsolationForestEnsemble(
+        _Detector(0.0, "no statistical alert"),
+        _Detector(50.0, "feature combination falls outside the learned normal envelope"),
+    )
+
+    result = ensemble.score(
+        {
+            "account_has_prior_history": 1.0,
+            "is_new_device": 1.0,
+            "is_unusual_login_hour": 1.0,
+            "login_uses_mfa": 1.0,
+        }
+    )
+
+    assert "context for review (not model attribution)" in result["explanation"]
+    assert "device not previously seen" in result["explanation"]
+    assert "successful MFA authentication reported" in result["explanation"]

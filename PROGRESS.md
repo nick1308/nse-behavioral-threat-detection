@@ -36,8 +36,8 @@ are not general validation.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
   78 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
-- Docker packaging files exist, but a Docker image build has not been verified
-  because the local Docker engine was unavailable during the last attempt.
+- Docker packaging files exist. Docker CLI is present, but the Docker engine is
+  unavailable in this environment, so an image build remains unverified.
 - A local analyst dashboard is served by FastAPI. It replays a fixed-seed,
   fixed-start-time synthetic stream, shows recent event risk, explanations,
   detector component scores, suspected pattern guesses, and risk filters.

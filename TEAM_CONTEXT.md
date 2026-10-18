@@ -63,7 +63,7 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | FastAPI `/health`, `/score`, event history, synthetic replay, dashboard | Implemented for local demo; no broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **78 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **82 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
@@ -74,8 +74,10 @@ interactive docs at `http://localhost:8000/docs`, or open the analyst dashboard 
 
 1. **Broader evaluation.** The fixed-seed combined run detects 4/4 synthetic scenarios,
    with 90.7% event recall and 3.0% FPR. Across five generator seeds, mean FPR is 3.4%
-   and event recall is 90.7%. This is not an independent estimate; hold out attack patterns
-   before making broader claims.
+   and event recall is 90.7%. Curated lower-amplitude/timing variations detect one scenario
+   per attack type, with 58.3% event recall for automated trading. These checks reuse
+   hand-designed signals and are not independent evidence; broader claims require
+   independent attack patterns and broker-like data.
 2. **API end-to-end evaluation.** Current reported latency measures feature extraction plus
    detector scoring, not request validation, transport, or process startup/model fitting.
 3. **Model lifecycle.** The API fits a demo model from fixed normal-only synthetic histories
@@ -115,7 +117,7 @@ are supporting validation, not the project's purpose. The historical materials i
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 78 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 82 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

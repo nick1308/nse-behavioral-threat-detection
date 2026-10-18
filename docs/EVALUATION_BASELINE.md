@@ -106,6 +106,33 @@ feature extraction and detector scoring. None of these figures establishes
 production performance or validates the working targets against independent
 data.
 
+## Curated attack-variation checks
+
+Run a second check with lower-amplitude or timing-varied attack recipes:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m threat_detection.evaluation.variants
+```
+
+This runner fits and calibrates the same combined pipeline on normal-only
+synthetic streams, then evaluates one curated variation per attack type after a
+separate synthetic normal history. Evaluation labels are removed before
+features and detectors. These are designed challenge cases, not independent
+samples: they change magnitude or timing while retaining the same three
+hand-selected behavior signals, and they do not represent real broker traffic.
+
+| Curated variation | Events | Attack-event recall | Scenario recall | False-positive rate |
+|---|---:|---:|---:|---:|
+| Account takeover: 2× typical quantity, new device and unusual-hour login | 47 | 100.0% (2 / 2) | 100.0% (1 / 1) | 0.0% (0 / 45) |
+| API abuse: 6 requests spaced 5 seconds apart | 51 | 100.0% (6 / 6) | 100.0% (1 / 1) | 0.0% (0 / 45) |
+| Automated trading: 6 matched pairs with 243–257 ms cancel delays | 57 | 58.3% (7 / 12) | 100.0% (1 / 1) | 0.0% (0 / 45) |
+
+The automated-trading variation exposes an event-level limitation: the
+scenario is eventually flagged, but only 7 of its 12 events cross the
+threshold. The checks help identify brittle magnitudes and timing assumptions;
+four total scenarios do not establish expected broker performance.
+
 The market-time feature uses the NSE regular equity time window of 09:15–15:30
 India Standard Time on weekdays. It does not load the exchange holiday
 calendar, so it is a weekday time-window indicator rather than a live market

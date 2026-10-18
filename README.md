@@ -63,6 +63,9 @@ The command reports z-score, Isolation Forest, and combined results on the same
 fixed evaluation seed. The forest is fit on a separate normal-only stream and its
 alert cutoff is calibrated on another normal-only stream. Read measured results
 and limitations in [docs/EVALUATION_BASELINE.md](docs/EVALUATION_BASELINE.md).
+Run the curated magnitude/timing challenge cases with
+`$env:PYTHONPATH = "src"; .\.venv\Scripts\python.exe -m threat_detection.evaluation.variants`;
+these remain synthetic checks, not independent broker validation.
 
 ## Run the API locally
 

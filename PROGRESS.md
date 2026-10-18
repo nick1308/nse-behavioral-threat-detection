@@ -15,7 +15,7 @@ stronger validation remain.
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
 | Analyst UI | `████████░░` 80% | Dashboard, risk reasons, filters, event history, and seeded replay work; visual/user review remains |
 | End-to-end product workflow | `███████░░░` 70% | UI calls FastAPI replay/history; durable storage and broker adapter are absent |
-| Reliability and validation | `██████░░░░` 60% | 72 tests pass; held-out attack variants and deployment checks remain |
+| Reliability and validation | `██████░░░░` 60% | 77 tests pass; held-out attack variants and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -31,26 +31,33 @@ are not general validation.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  72 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  77 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist, but a Docker image build has not been verified
   because the local Docker engine was unavailable during the last attempt.
-- A local analyst dashboard is served by FastAPI. It replays a seeded synthetic
-  stream, shows recent event risk, explanations, detector component scores,
-  suspected pattern guesses, and risk filters. State/history are in memory only.
+- A local analyst dashboard is served by FastAPI. It replays a fixed-seed,
+  fixed-start-time synthetic stream, shows recent event risk, explanations,
+  detector component scores, suspected pattern guesses, and risk filters.
+  State/history are in memory only.
+- Live local smoke check: health, dashboard, CSS, and JavaScript returned 200;
+  two seed-42 runs each scored 283 synthetic events, produced 87 alerts, and
+  returned identical event histories with no ground-truth fields exposed.
+  These counts describe the demo replay, not detector generalization.
 - `NormalizedEvent` in `ingestion/schema.py` is the canonical broker-neutral
-  event contract used by the API. `BrokerEventAdapter.normalize()` is an
-  abstract mapping extension point; no broker-specific adapter or live broker
-  connection exists. Device and IP telemetry may be absent; the feature
+  event contract used by the API. `ConfiguredFieldMapAdapter` maps flat source
+  field names and event-type aliases into it; `BrokerEventAdapter.normalize()`
+  remains the extension point for custom transformations. No broker-specific
+  configuration or live broker connection exists. Device and IP telemetry may be absent; the feature
   extractor treats missing values as unavailable and does not add missing order
   quantities or values to the behavioral baseline.
 
 ## Product finish plan
 
-1. **Complete the broker event boundary.** The canonical normalized event model
-   and abstract adapter contract now exist. Implement and validate a mapping
-   only after choosing a broker and receiving its authorized event schema. The
-   demo uses `SyntheticEventSource`; no real integration is claimed.
+1. **Complete the broker event boundary.** The canonical normalized event model,
+   adapter contract, and reusable flat-field mapping adapter exist. Configure
+   and validate a broker mapping only after choosing a provider and receiving
+   its authorized event schema. The demo uses `SyntheticEventSource`; no live
+   integration is claimed.
 2. **Refine the risk assessment.** Keep explanations tied to observable signals,
    validate threshold behavior and known limitations, and improve the weak
    standalone Forest contribution before treating it as production-ready.
@@ -104,7 +111,7 @@ without Swagger or a terminal.
 ## Abstract contracts versus concrete implementations
 
 `ingestion/base.py`, `features/base.py`, and `detection/base.py` define
-abstract extension points including `BrokerEventAdapter`. Concrete implementations are `SyntheticEventSource`,
+abstract extension points including `BrokerEventAdapter`. Concrete implementations are `ConfiguredFieldMapAdapter`, `SyntheticEventSource`,
 `RollingStatsFeatureExtractor`, `ZScoreAnomalyDetector`,
 `IsolationForestAnomalyDetector`, and `ZScoreIsolationForestEnsemble`. The
 analyst dashboard and synthetic event history/replay are implemented. A

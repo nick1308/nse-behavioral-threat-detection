@@ -11,8 +11,9 @@ production deployment; its evaluation uses synthetic planted patterns.
 ## Current implementation
 
 - `ingestion/`: canonical `NormalizedEvent` contract, abstract broker adapter
-  extension point, and seeded synthetic source with account takeover, API abuse,
-  and automated trading scenarios. A broker-specific adapter is not implemented.
+  extension point, configurable flat-field mapper, and seeded synthetic source
+  with account takeover, API abuse, and automated trading scenarios. No
+  broker-specific mapping or live connection is included.
 - `features/`: online order-size/value statistics, account device and login
   history, per-client request rates, matched order-cancel timing, and Indian
   regular-session context.

@@ -48,3 +48,14 @@ def test_demo_replay_scores_events_and_keeps_ground_truth_out_of_ui_api():
 def test_event_history_limit_is_bounded():
     response = client.get("/events?limit=501")
     assert response.status_code == 422
+
+
+def test_demo_replay_is_repeatable_for_the_same_seed():
+    first_replay = client.post("/demo/replay?seed=42").json()
+    first_events = client.get("/events?limit=500").json()["events"]
+
+    second_replay = client.post("/demo/replay?seed=42").json()
+    second_events = client.get("/events?limit=500").json()["events"]
+
+    assert second_replay == first_replay
+    assert second_events == first_events

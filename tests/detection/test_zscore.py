@@ -39,6 +39,31 @@ def test_new_device_new_hour_and_oversized_order_triggers_account_takeover():
     assert result["attack_type_guess"] == "account_takeover"
     assert result["risk_score"] > 0
     assert "new device" in result["explanation"]
+    assert "order quantity 4.5σ" in result["explanation"]
+
+
+def test_order_value_alert_explains_value_deviation():
+    detector = ZScoreAnomalyDetector()
+
+    result = detector.score(_clean_features(order_value_zscore=4.5))
+
+    assert result["risk_score"] > 0
+    assert "order value 4.5σ above this account's historical average" in result["explanation"]
+
+
+def test_takeover_explanation_uses_the_stronger_order_value_signal():
+    detector = ZScoreAnomalyDetector()
+
+    result = detector.score(
+        _clean_features(
+            account_takeover_context=1.0,
+            order_size_zscore=4.0,
+            order_value_zscore=5.0,
+        )
+    )
+
+    assert result["attack_type_guess"] == "account_takeover"
+    assert "order value 5.0σ" in result["explanation"]
 
 
 def test_large_order_alone_gets_a_partial_score_not_a_takeover_verdict():

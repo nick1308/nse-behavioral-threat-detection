@@ -72,7 +72,7 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 
 ## 3. What's implemented, abstract, and still required
 
-- `NormalizedEvent` is the shared broker-neutral contract. `BrokerEventAdapter` is an abstract mapping boundary; a broker-specific mapping is not implemented.
+- `NormalizedEvent` is the shared broker-neutral contract. `ConfiguredFieldMapAdapter` handles flat field/type aliases, and `BrokerEventAdapter` is the extension point for custom mappings. No broker-specific mapping or connection is implemented.
 - The `EventSource`, `FeatureExtractor`, and `AnomalyDetector` base classes are abstract contracts, not runnable implementations.
 - Concrete implementations exist for the synthetic source, rolling statistics extractor, z-score detector, Isolation Forest detector, and max-score ensemble.
 - Autoencoder comparison method (`DECISIONS.md` §5)

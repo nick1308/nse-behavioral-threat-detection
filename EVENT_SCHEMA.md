@@ -74,7 +74,9 @@ _(no extra fields — common fields only)_
 `src/threat_detection/ingestion/schema.py` implements this canonical contract
 as `NormalizedEvent`; the API accepts the same model. The abstract
 `BrokerEventAdapter` in `ingestion/base.py` is the extension point for mapping a
-broker-specific record into it. No broker-specific adapter is implemented.
+broker-specific record into it. `ConfiguredFieldMapAdapter` supports flat
+source-field names and event-type aliases. No provider-specific mapping or live
+broker connection is implemented.
 The model validates the event type and rejects undeclared fields. Type-specific
 attributes are optional because adapters may have partial telemetry; each
 detector must treat missing signals as unavailable, not as proof of normal or

@@ -130,6 +130,7 @@ def replay_demo(seed: int = Query(default=42, ge=0)) -> dict[str, int]:
         num_attack_accounts=3,
         events_per_normal_account=20,
         seed=seed,
+        start_time=datetime(2026, 9, 18, tzinfo=timezone.utc),
     )
     processed = 0
     for generated_event in source.events():

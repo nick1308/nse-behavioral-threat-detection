@@ -82,7 +82,7 @@ Glasser, J., & Lindauer, B. (2013). *Bridging the Gap: A Pragmatic Approach to G
 
 | Layer | Choice | Why |
 |---|---|---|
-| API framework | FastAPI | Pydantic request validation; exposes `/health`, `/score`, `/events`, and `/demo/replay` |
+| API framework | FastAPI | Pydantic request validation; exposes `/health`, `/score`, optional mapped `/score/source`, `/events`, and `/demo/replay` |
 | Dependency management | pip + requirements.txt | Simplest for a 3-person team; no extra tooling to install/sync |
 | Event storage | Bounded local SQLite history for compact score summaries | Keeps recent analyst history across restarts without a new dependency; rolling feature state is still process-local and production-secured storage remains future work |
 | Caching | None | No measured need at current prototype scale |

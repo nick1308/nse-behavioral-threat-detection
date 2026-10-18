@@ -25,8 +25,9 @@ production deployment; its evaluation uses synthetic planted patterns.
 - `evaluation/`: ground-truth-safe replay, clean-stream model fitting and
   calibration, scenario and event recall, false-positive rate, per-attack-type
   recall, and per-event processing latency.
-- `api/`: FastAPI `/health`, `/score`, `/events`, and synthetic replay endpoints,
-  plus the local analyst dashboard and bounded SQLite event-summary history.
+- `api/`: FastAPI `/health`, `/score`, optional mapped `/score/source`, `/events`,
+  and synthetic replay endpoints, plus the local dashboard and bounded SQLite
+  event-summary history.
 
 The ingestion `base.py` defines `EventSource` and `BrokerEventAdapter` contracts;
 the feature and detection `base.py` files define `FeatureExtractor` and
@@ -79,6 +80,22 @@ these remain synthetic checks, not independent broker validation.
 ```powershell
 uvicorn threat_detection.api.main:app --app-dir src --reload
 ```
+
+To enable flat source-event mapping, set the canonical-to-source field map
+before starting the API. This example expects `id`, `trading_account`,
+`occurred_at`, `action`, and `session` fields and maps `TRADE_EXECUTED` to
+`ORDER`:
+
+```powershell
+$env:THREAT_DETECTION_FIELD_MAP = '{"event_id":"id","account_id":"trading_account","timestamp":"occurred_at","event_type":"action","session_id":"session","order_value":"amount"}'
+$env:THREAT_DETECTION_EVENT_TYPE_MAP = '{"TRADE_EXECUTED":"ORDER"}'
+```
+
+In the same PowerShell session, start the API with the command above. Then send
+a flat mapped event to `POST /score/source`. The route is disabled
+without a mapping. It does not establish a broker connection, authenticate a
+caller, or support nested payload transformations; keep it local unless access
+controls are added.
 
 Then open `http://localhost:8000/docs` or check `http://localhost:8000/health`.
 The analyst dashboard is at `http://localhost:8000/`.

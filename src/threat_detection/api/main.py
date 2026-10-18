@@ -13,20 +13,22 @@ would have no history to compare against and every event would look
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from threat_detection.api.event_store import SQLiteEventStore
 from threat_detection.detection.ensemble import ZScoreIsolationForestEnsemble
 from threat_detection.detection.zscore import ZScoreAnomalyDetector
 from threat_detection.evaluation.harness import fit_isolation_forest
 from threat_detection.features.rolling_stats import RollingStatsFeatureExtractor
+from threat_detection.ingestion.base import ConfiguredFieldMapAdapter
 from threat_detection.ingestion.schema import NormalizedEvent as EventIn
 from threat_detection.ingestion.synthetic import SyntheticEventSource
 
@@ -41,6 +43,38 @@ _event_store = SQLiteEventStore(
     os.environ.get("THREAT_DETECTION_DB_PATH", "data/events.sqlite3"),
     max_events=_MAX_RECENT_EVENTS,
 )
+
+
+def _read_mapping_setting(setting_name: str) -> dict[str, str]:
+    raw_setting = os.environ.get(setting_name)
+    if raw_setting is None or not raw_setting.strip():
+        return {}
+    try:
+        parsed_setting = json.loads(raw_setting)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f"{setting_name} must contain a JSON object") from error
+    if not isinstance(parsed_setting, dict):
+        raise RuntimeError(f"{setting_name} must contain a JSON object")
+    if any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in parsed_setting.items()
+    ):
+        raise RuntimeError(f"{setting_name} must map strings to strings")
+    return parsed_setting
+
+
+def _build_source_adapter() -> ConfiguredFieldMapAdapter | None:
+    field_map = _read_mapping_setting("THREAT_DETECTION_FIELD_MAP")
+    event_type_map = _read_mapping_setting("THREAT_DETECTION_EVENT_TYPE_MAP")
+    if not field_map and not event_type_map:
+        return None
+    return ConfiguredFieldMapAdapter(
+        field_map=field_map,
+        event_type_map=event_type_map,
+    )
+
+
+_broker_event_adapter = _build_source_adapter()
 
 
 def _build_detector() -> ZScoreIsolationForestEnsemble:
@@ -163,3 +197,30 @@ def replay_demo(seed: int = Query(default=42, ge=0)) -> dict[str, int]:
 def score_event(event: EventIn) -> dict[str, Any]:
     """Run one event through features and ensemble scoring."""
     return _score_and_record(event)
+
+
+@app.post("/score/source", response_model=ScoreOut)
+def score_source_event(source_event: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Map a configured flat broker record, then score its normalized event.
+
+    This endpoint does not connect to a broker or authenticate callers. It is
+    disabled unless a deployment configures its source-field mapping at start.
+    """
+    if _broker_event_adapter is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No source field mapping is configured for this endpoint.",
+        )
+    try:
+        normalized_event = _broker_event_adapter.normalize(source_event)
+    except ValidationError as error:
+        safe_errors = [
+            {
+                "loc": list(item["loc"]),
+                "msg": item["msg"],
+                "type": item["type"],
+            }
+            for item in error.errors()
+        ]
+        raise HTTPException(status_code=422, detail=safe_errors) from error
+    return _score_and_record(normalized_event)

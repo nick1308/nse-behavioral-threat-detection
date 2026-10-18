@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from threat_detection.api import main
@@ -65,6 +66,52 @@ def test_api_event_history_is_available_after_store_reopen(tmp_path, monkeypatch
         assert history[0]["risk_score"] == score_response.json()["risk_score"]
     finally:
         reopened_store.close()
+
+
+def test_configured_source_event_is_mapped_scored_and_recorded(monkeypatch):
+    monkeypatch.setenv(
+        "THREAT_DETECTION_FIELD_MAP",
+        '{"event_id":"id","account_id":"trading_account",'
+        '"timestamp":"occurred_at","event_type":"action",'
+        '"session_id":"session","order_value":"amount"}',
+    )
+    monkeypatch.setenv("THREAT_DETECTION_EVENT_TYPE_MAP", '{"TRADE_EXECUTED":"ORDER"}')
+    monkeypatch.setattr(main, "_broker_event_adapter", main._build_source_adapter())
+    source_event = {
+        "id": "broker-event-1",
+        "trading_account": "BROKER-ACCOUNT-1",
+        "occurred_at": "2026-09-18T10:15:00+00:00",
+        "action": "TRADE_EXECUTED",
+        "session": "broker-session-1",
+        "amount": 1500.0,
+        "broker_internal_flag": "discard me",
+        "is_attack": True,
+    }
+
+    response = client.post("/score/source", json=source_event)
+
+    assert response.status_code == 200
+    history = client.get("/events?limit=10").json()["events"]
+    assert len(history) == 1
+    assert history[0]["event_id"] == "broker-event-1"
+    assert history[0]["event_type"] == "ORDER"
+    assert "broker_internal_flag" not in history[0]
+    assert "is_attack" not in history[0]
+
+
+def test_source_scoring_is_disabled_without_mapping_configuration():
+    response = client.post("/score/source", json={"id": "unmapped-event"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "No source field mapping is configured for this endpoint."
+
+
+def test_invalid_source_mapping_configuration_is_rejected(monkeypatch):
+    monkeypatch.setenv("THREAT_DETECTION_FIELD_MAP", "[\"not\", \"an object\"]")
+    monkeypatch.delenv("THREAT_DETECTION_EVENT_TYPE_MAP", raising=False)
+
+    with pytest.raises(RuntimeError, match="must contain a JSON object"):
+        main._build_source_adapter()
 
 
 def test_first_event_for_a_new_account_is_low_risk():

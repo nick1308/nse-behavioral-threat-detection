@@ -37,7 +37,7 @@ architecture and data-flow view, cross-referenced back to those decisions.
                                              ▼
                     ┌──────────────────────────────────────────────┐
                     │  API  (threat_detection.api, FastAPI)          │
-                    │  /health, /score, /events, /demo/replay        │
+                    │  /health, /score[/source], /events, /demo/replay│
                     │  compact score history → local SQLite          │
                     └───────────────────────┬────────────────────────┘
                                              │ JSON
@@ -79,7 +79,7 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 
 ## 3. What's implemented, abstract, and still required
 
-- `NormalizedEvent` is the shared broker-neutral contract. `ConfiguredFieldMapAdapter` handles flat field/type aliases, and `BrokerEventAdapter` is the extension point for custom mappings. No broker-specific mapping or connection is implemented.
+- `NormalizedEvent` is the shared broker-neutral contract. `ConfiguredFieldMapAdapter` handles flat field/type aliases and can be enabled for `/score/source` with startup environment settings; `BrokerEventAdapter` is the extension point for custom mappings. No provider-specific mapping or connection is implemented.
 - The `EventSource`, `FeatureExtractor`, and `AnomalyDetector` base classes are abstract contracts, not runnable implementations.
 - Concrete implementations exist for the synthetic source, rolling statistics extractor, z-score detector, Isolation Forest detector, and max-score ensemble.
 - Autoencoder comparison method (`DECISIONS.md` §5)

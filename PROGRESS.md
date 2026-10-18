@@ -14,8 +14,8 @@ stronger validation remain.
 |---|---:|---|
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
 | Analyst UI | `████████░░` 80% | Dashboard supports seeded replay and one normalized event submission, with risk reasons, filters, and history; visual/user review remains |
-| End-to-end product workflow | `███████░░░` 70% | UI submits normalized events and displays persistent SQLite history; per-account feature state and provider-specific broker integration remain in-process/unimplemented |
-| Reliability and validation | `██████░░░░` 60% | 93 tests pass; SQLite restart history, isolated demo replay, curated attack variations, and one constructed benign MFA case are checked; independent attack data and deployment checks remain |
+| End-to-end product workflow | `███████░░░` 70% | UI submits normalized events; optional configured flat-field `/score/source` maps and scores source records; per-account feature state and provider-specific feed remain unimplemented |
+| Reliability and validation | `██████░░░░` 60% | 96 tests pass; SQLite restart history, isolated demo replay, configured source mapping, curated attack variations, and one constructed benign MFA case are checked; independent attack data and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -34,7 +34,7 @@ are not general validation.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  93 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  96 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist. Docker CLI is present, but the Docker engine is
   unavailable in this environment, so an image build remains unverified.
@@ -43,7 +43,9 @@ are not general validation.
   detector component scores, suspected pattern guesses, and risk filters. It
   also accepts one canonical normalized event as JSON and displays the saved
   score and explanation. Broker source records still need a deployment-specific
-  adapter before submission. Scored summaries persist in local SQLite at
+  mapping before submission; an optional configured `/score/source` endpoint
+  now runs flat-field mappings through the same scoring path. Scored summaries
+  persist in local SQLite at
   `data/events.sqlite3` by default (override with `THREAT_DETECTION_DB_PATH`),
   capped at 500. Raw payloads and ground-truth labels are not stored. Rolling
   feature state and the demo model are still process-local; the local database
@@ -72,9 +74,10 @@ are not general validation.
 ## Product finish plan
 
 1. **Complete the broker event boundary.** The canonical normalized event model,
-   adapter contract, and reusable flat-field mapping adapter exist. Configure
-   and validate a broker mapping only after choosing a provider and receiving
-   its authorized event schema. The demo uses `SyntheticEventSource`; no live
+   adapter contract, and reusable flat-field mapping adapter exist. An optional
+   `/score/source` endpoint uses configured flat-field mappings. Configure and
+   validate a provider mapping only after choosing a provider and receiving its
+   authorized event schema. The demo uses `SyntheticEventSource`; no live
    integration is claimed.
 2. **Refine the risk assessment.** Keep explanations tied to observable signals,
    validate threshold behavior and known limitations, and improve the weak
@@ -134,7 +137,8 @@ without Swagger or a terminal.
 abstract extension points including `BrokerEventAdapter`. Concrete implementations are `ConfiguredFieldMapAdapter`, `SyntheticEventSource`,
 `RollingStatsFeatureExtractor`, `ZScoreAnomalyDetector`,
 `IsolationForestAnomalyDetector`, and `ZScoreIsolationForestEnsemble`. The
-analyst dashboard, synthetic event replay, and bounded local SQLite history of
-scored summaries are implemented. A provider-specific broker adapter, live
-exchange/broker feed, durable rolling-feature/model state, secured production
-storage, Kafka, WebSocket feed, and graph detector are not implemented.
+analyst dashboard, synthetic event replay, bounded local SQLite score history,
+and optional flat-field `/score/source` mapping are implemented. A
+provider-specific broker adapter, live exchange/broker feed, durable
+rolling-feature/model state, secured production storage, Kafka, WebSocket feed,
+and graph detector are not implemented.

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101923" />
+    <title>Sentinel · Behavioral Risk</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <a class="brand" href="/" aria-label="Sentinel home">
+          <span class="brand-mark">S</span><span>sentinel<span class="brand-dot">.</span></span>
+        </a>
+        <div class="workspace-label">WORKSPACE</div>
+        <a class="nav-item active" href="/"><span class="nav-icon">▦</span> Risk overview</a>
+        <a class="nav-item" href="#events"><span class="nav-icon">◷</span> Event activity</a>
+        <div class="sidebar-bottom">
+          <div class="environment"><span class="status-dot"></span><span><b>Demo environment</b><small>Local synthetic stream</small></span></div>
+          <div class="sidebar-foot">BEHAVIORAL THREAT MONITOR</div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumbs">Workspace <span>/</span> <b>Risk overview</b></div>
+          <div class="topbar-right"><span class="live-indicator"><i></i> SYSTEM ONLINE</span><span class="avatar">A</span></div>
+        </header>
+
+        <section class="page-heading">
+          <div>
+            <div class="eyebrow">ACCOUNT BEHAVIOR · NSE SIMULATION</div>
+            <h1>Risk overview</h1>
+            <p>Review unusual account activity and understand what triggered each risk score.</p>
+          </div>
+          <button id="replay-button" class="primary-button"><span aria-hidden="true">▶</span> Run demo stream</button>
+        </section>
+
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <section class="stat-grid" aria-label="Activity summary">
+          <article class="stat-card"><div class="stat-label">Events analyzed <span class="stat-symbol">↗</span></div><div id="event-count" class="stat-value">0</div><div class="stat-caption">Scored by the detection pipeline</div></article>
+          <article class="stat-card"><div class="stat-label">High risk <span class="risk-chip high">≥ 70</span></div><div id="high-count" class="stat-value">0</div><div class="stat-caption">Events that need prompt review</div></article>
+          <article class="stat-card"><div class="stat-label">Needs review <span class="risk-chip medium">50–69</span></div><div id="medium-count" class="stat-value">0</div><div class="stat-caption">Elevated behavioral signals</div></article>
+          <article class="stat-card"><div class="stat-label">Accounts observed <span class="stat-symbol">◎</span></div><div id="account-count" class="stat-value">0</div><div class="stat-caption">Distinct accounts in recent activity</div></article>
+        </section>
+
+        <section id="events" class="panel" aria-labelledby="alerts-title">
+          <div class="panel-heading">
+            <div><div class="eyebrow">LIVE EVENT REVIEW</div><h2 id="alerts-title">Recent activity</h2><p>Scores are behavioral risk indicators, not probabilities of fraud.</p></div>
+            <div class="filters"><label class="sr-only" for="risk-filter">Filter by risk</label><select id="risk-filter"><option value="all">All risk levels</option><option value="high">High risk (70+)</option><option value="review">Needs review (50+)</option><option value="low">Low risk (&lt;50)</option></select><button id="refresh-button" class="icon-button" title="Refresh events" aria-label="Refresh events">↻</button></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>EVENT / ACCOUNT</th><th>TYPE</th><th>RISK</th><th>WHY IT WAS FLAGGED</th><th>TIME</th></tr></thead>
+              <tbody id="event-rows"><tr><td colspan="5" class="empty-state">No events yet. Run the demo stream to see scored activity.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="panel-footer"><span id="shown-count">Showing 0 events</span><span>Risk threshold: 50 · Model output is explainable and reviewable</span></div>
+        </section>
+
+        <footer class="page-footer"><span>Sentinel · IDP behavioral threat detection prototype</span><span>Events are synthetic and generated locally for demonstration</span></footer>
+      </main>
+    </div>
+    <script src="/dashboard.js" defer></script>
+  </body>
+</html>

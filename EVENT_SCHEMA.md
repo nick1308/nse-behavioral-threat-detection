@@ -1,21 +1,22 @@
 # Event Schema
 
-Defines every event type the system ingests, and the fields each one carries.
-This is the contract every other module (ingestion, features, detection) is built against — change it deliberately, not accidentally.
+Defines the normalized event contract accepted by the scoring API. A broker
+integration must map its own event format to this contract; the current demo
+source is synthetic and is not a live broker connection.
 
-## Common fields (every event has these)
+## Core event fields
 
 | Field | Type | Notes |
 |---|---|---|
-| `event_id` | UUID | Unique per event |
+| `event_id` | string | Unique per event; may use the broker's ID or a generated UUID |
 | `account_id` | string | The account this event belongs to |
 | `timestamp` | ISO 8601 datetime | When the event occurred |
 | `event_type` | enum | One of the types below |
-| `device_id` | string | Device fingerprint (simulated) |
-| `ip_address` | string | Simulated network origin |
+| `device_id` | string or null | Pseudonymous device identifier when the broker is authorized to provide one; nullable because some sources do not expose it |
+| `ip_address` | string or null | Network-origin identifier when available and approved; nullable and should be minimized/pseudonymized where appropriate |
 | `session_id` | string | Groups events within one login session |
 
-## Event types and type-specific fields
+## Supported event types and type-specific fields
 
 ### LOGIN
 | Field | Type |
@@ -69,6 +70,11 @@ _(no extra fields — common fields only)_
 |---|---|
 | `previous_device_id` | string |
 | `new_device_id` | string |
+
+The API validates the event type and rejects undeclared fields. Type-specific
+attributes are optional in the transport model because adapters may have
+partial telemetry; each detector must treat missing signals as unavailable,
+not as proof of normal or malicious behavior.
 
 ## Ground-truth labeling (synthetic data only)
 

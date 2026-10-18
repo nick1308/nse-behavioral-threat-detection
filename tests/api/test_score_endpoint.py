@@ -70,6 +70,25 @@ def test_score_endpoint_rejects_ground_truth_fields():
     assert response.status_code == 422
 
 
+def test_score_endpoint_accepts_events_without_device_or_ip_telemetry():
+    event = _order_event(event_id="evt-privacy-minimized")
+    event.pop("device_id")
+    event.pop("ip_address")
+
+    response = client.post("/score", json=event)
+
+    assert response.status_code == 200
+    assert response.json()["risk_score"] >= 0
+
+
+def test_score_endpoint_rejects_unknown_event_type_and_undeclared_fields():
+    unknown_type = client.post("/score", json=_order_event(event_type="TRADE_FILLED"))
+    undeclared = client.post("/score", json=_order_event(unmapped_secret="value"))
+
+    assert unknown_type.status_code == 422
+    assert undeclared.status_code == 422
+
+
 def test_health_still_works():
     response = client.get("/health")
     assert response.status_code == 200

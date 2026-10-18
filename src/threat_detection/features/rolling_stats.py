@@ -7,7 +7,7 @@ floor" layer described in DECISIONS.md §4 — every feature here is a plain
 statistic an analyst could compute by hand, on purpose, so the detector built
 on top of it can explain itself in plain English.
 
-State is kept in memory, per DESIGN.md's Review-2 scope (no DB/Redis yet).
+State is kept in memory; persistence is not implemented in this prototype.
 """
 
 from __future__ import annotations
@@ -125,6 +125,8 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         account_id = event["account_id"]
         state = self._state_for(account_id)
         event_type = event["event_type"]
+        event_device_id = event.get("device_id")
+        event_ip_address = event.get("ip_address")
         timestamp = datetime.fromisoformat(event["timestamp"])
         local_timestamp = (
             timestamp.replace(tzinfo=_INDIA_TIMEZONE)
@@ -156,7 +158,11 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         if state.recent_takeover_login is not None:
             login_device, login_timestamp = state.recent_takeover_login
             seconds_since_login = (timestamp - login_timestamp).total_seconds()
-            if 0 <= seconds_since_login <= 300 and event["device_id"] == login_device:
+            if (
+                0 <= seconds_since_login <= 300
+                and event_device_id is not None
+                and event_device_id == login_device
+            ):
                 takeover_context = 1.0
             elif seconds_since_login < 0 or seconds_since_login > 300:
                 state.recent_takeover_login = None
@@ -177,8 +183,12 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             # the account-takeover signal needs "unseen device" as a hard fact,
             # not a magnitude, so this is deliberately binary rather than a
             # z-score (DECISIONS.md §8: "new/unseen device").
-            "is_new_device": 0.0 if event["device_id"] in state.seen_devices else 1.0,
-            "is_new_ip": 0.0 if event["ip_address"] in state.seen_ips else 1.0,
+            "is_new_device": (
+                1.0 if event_device_id is not None and event_device_id not in state.seen_devices else 0.0
+            ),
+            "is_new_ip": (
+                1.0 if event_ip_address is not None and event_ip_address not in state.seen_ips else 0.0
+            ),
             # 1.0 if this is the first event this account has ever produced at
             # this local hour-of-day — captures "login outside the account's
             # historical time window" (DECISIONS.md §8) without needing to
@@ -259,12 +269,19 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         # Update "seen" sets/hours AFTER computing is_new_* above, so the
         # very event that introduces a new device/IP/hour is the one that
         # correctly reports it as new (otherwise it would never fire).
-        state.seen_devices.add(event["device_id"])
-        state.seen_ips.add(event["ip_address"])
+        if event_device_id is not None:
+            state.seen_devices.add(event_device_id)
+        if event_ip_address is not None:
+            state.seen_ips.add(event_ip_address)
         state.login_hours_seen.add(local_hour)
         if successful_login:
-            if state.observed_login_hours and features["is_new_device"] and is_unusual_login_hour:
-                state.recent_takeover_login = (event["device_id"], timestamp)
+            if (
+                event_device_id is not None
+                and state.observed_login_hours
+                and features["is_new_device"]
+                and is_unusual_login_hour
+            ):
+                state.recent_takeover_login = (event_device_id, timestamp)
             state.observed_login_hours.add(local_hour)
 
         state.event_count += 1

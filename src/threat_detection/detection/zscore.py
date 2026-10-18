@@ -1,8 +1,8 @@
 """Rolling z-score anomaly detector — a concrete AnomalyDetector.
 
 This is the statistical baseline described in DECISIONS.md §4: interpretable,
-requires no training data, and gives every later ML layer (Isolation Forest,
-future work — DECISIONS.md §3) something concrete to be compared against.
+requires no training data, and is compared with the current Isolation Forest
+layer (DECISIONS.md §3).
 
 Combines the per-signal features from RollingStatsFeatureExtractor into a
 single 0-100 risk score with a plain-English explanation, and — where the

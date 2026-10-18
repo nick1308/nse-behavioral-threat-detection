@@ -1,7 +1,7 @@
 # Synthetic evaluation baseline
 
-This report records fixed-input measurements for the z-score baseline and an
-Isolation Forest comparison. These are implementation measurements on this
+This report records fixed-input measurements for the current risk signals
+(z-score, Isolation Forest, and their combined score). These are implementation measurements on this
 synthetic generator, not literature results or claims that the project targets
 are achieved on real trading data.
 
@@ -39,7 +39,7 @@ the event reaches the feature extractor. The default alert threshold is `50`.
 
 ## Measured result
 
-The Isolation Forest comparison is fit on a separate 900-event synthetic
+The current Isolation Forest signal is fit on a separate 900-event synthetic
 stream generated with zero planted attack accounts (seed 7). Its alert cutoff
 is calibrated to a 5% false-positive operating point on a second, separate
 900-event normal-only stream (seed 8). Ground-truth fields are stripped before
@@ -57,8 +57,8 @@ interpret sparse order, cancellation, login, and API signals in context.
 | Account takeover scenario recall | 100.0% (2 / 2) | 100.0% (2 / 2) |
 | API abuse scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
 | Automated trading scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
-| Mean per-event feature-plus-detector latency | 0.008 ms | 10.452 ms |
-| 95th percentile per-event feature-plus-detector latency | 0.016 ms | 12.216 ms |
+| Mean per-event feature-plus-detector latency | 0.007 ms | 10.662 ms |
+| 95th percentile per-event feature-plus-detector latency | 0.016 ms | 11.855 ms |
 
 The combined detector uses the larger of the z-score and Isolation Forest
 scores. It retains the z-score attack-type guess and includes explanations from
@@ -70,8 +70,8 @@ each layer that raised a score. Its fixed-seed result was:
 | Attack-event recall | 90.7% (78 / 86) |
 | False-positive rate | 3.0% (27 / 900) |
 | Recall by attack type | 100.0% for each type |
-| Mean per-event feature-plus-detector latency | 9.792 ms |
-| 95th percentile per-event feature-plus-detector latency | 11.056 ms |
+| Mean per-event feature-plus-detector latency | 10.540 ms |
+| 95th percentile per-event feature-plus-detector latency | 12.806 ms |
 
 The forest's validation cutoff targeted 5% FPR; the measured evaluation FPR
 was 5.2%. Its recall is far below the 80% working target and misses API abuse
@@ -80,8 +80,9 @@ representation and model configuration are not ready to replace the
 interpretable detector. Do not present the forest as an effective production
 detector by itself. The combined detector cleared the working recall and FPR
 targets in this fixed-seed run, but this run alone does not establish those
-targets on independent data or unseen attack patterns. The comparison only
-measures this generator's known signatures.
+targets on independent data or unseen attack patterns. These figures measure
+this generator's known signatures and are supporting validation of the product
+risk logic, not a claim of general broker-ready effectiveness.
 
 Five fixed evaluation seeds (42–46), with the same fixed fit and calibration
 streams, produced combined results of 100% scenario recall and 90.7% event
@@ -91,31 +92,17 @@ seed-42 comparison. These seeds alter generator
 profile choices, not planted attack mechanisms; treat this as a stability check
 on one synthetic generator, not independent generalization evidence.
 
-Latency values below come from one fixed-seed run on this environment and can
+Latency values above come from one fixed-seed run on this environment and can
 vary across runs and machines. The five-seed check reports detection metrics,
 not a latency distribution.
 
-| Measure | Result |
-|---|---:|
-| Events | 986 |
-| Attack events | 86 |
-| Normal events | 900 |
-| Attack scenarios detected | 4 / 4 |
-| Attack-scenario recall | 100.0% |
-| Attack-event recall | 88.4% (76 / 86) |
-| False-positive rate | 0.0% (0 / 900) |
-| Account takeover scenario recall | 100.0% (2 / 2) |
-| API abuse scenario recall | 100.0% (1 / 1) |
-| Automated trading scenario recall | 100.0% (1 / 1) |
-| Mean per-event feature-plus-detector latency | 0.008 ms |
-| 95th percentile per-event feature-plus-detector latency | 0.016 ms |
-
-The recall result is a single fixed-seed run on synthetic data. Four scenarios
-are too few to estimate general performance, and the generator encodes the
-same signals the detector is designed to recognize. The latency measures only
-the in-process feature and detector stages. None of these figures establishes
+The z-score and combined metric tables above describe the current scoring
+pipeline. These are synthetic-generator measurements; four planted scenarios
+are too few to estimate general performance, and the generator encodes signals
+the detector is designed to recognize. The latency measures only in-process
+feature extraction and detector scoring. None of these figures establishes
 production performance or validates the working targets against independent
-data. Latency varies between runs and machines.
+data.
 
 The market-time feature uses the NSE regular equity time window of 09:15–15:30
 India Standard Time on weekdays. It does not load the exchange holiday

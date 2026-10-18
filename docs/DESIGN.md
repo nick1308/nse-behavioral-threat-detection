@@ -1,6 +1,6 @@
 # System Design
 
-Real-Time Behavioral Threat Detection for Trading Systems — IDP, Review 2
+Real-Time Behavioral Threat Detection for Trading Systems — IDP (status 2026-10-18)
 
 Rationale for every component choice below is in `DECISIONS.md`; this document is the
 architecture and data-flow view, cross-referenced back to those decisions.
@@ -10,7 +10,7 @@ architecture and data-flow view, cross-referenced back to those decisions.
 ```
                     ┌──────────────────────────────────────────────┐
                     │           Simulated Trading Platform          │
-                    │   (synthetic event generator, Review-2 scope) │
+                    │   (synthetic event generator)                 │
                     └───────────────────────┬────────────────────────┘
                                              │ raw events (EVENT_SCHEMA.md)
                                              ▼
@@ -37,13 +37,13 @@ architecture and data-flow view, cross-referenced back to those decisions.
                                              ▼
                     ┌──────────────────────────────────────────────┐
                     │  API  (threat_detection.api, FastAPI)          │
-                    │  /health, /score (Review-2 scope)              │
-                    │  WebSocket alert feed — future scope           │
+                    │  /health, /score                               │
+                    │  API responses / alert updates                │
                     └───────────────────────┬────────────────────────┘
                                              │ JSON
                                              ▼
                     ┌──────────────────────────────────────────────┐
-                    │      Analyst Dashboard (React) — future scope  │
+                    │      Analyst Dashboard (planned core UI)       │
                     └──────────────────────────────────────────────┘
 ```
 
@@ -52,7 +52,7 @@ Each layer is a separate Python package behind an abstract interface (`EventSour
 independently, and a layer's concrete implementation can be swapped without touching the
 others — e.g. swapping the synthetic generator for a real feed later only touches `ingestion`.
 
-## 2. Data flow (Review 2 prototype scope)
+## 2. Data flow (implemented prototype)
 
 1. Synthetic `EventSource` emits one event at a time (LOGIN, ORDER, CANCEL_ORDER, API_REQUEST,
    ...), a handful of simulated accounts, a few with planted attacks carrying `is_attack` /
@@ -70,28 +70,30 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
    the demo forest is fit on one normal-only synthetic stream and calibrated on a separate
    normal-only stream. Both use fixed seeds; the fitted model is process-local.
 
-## 3. What's explicitly deferred past Review 2
+## 3. What's implemented, abstract, and still required
 
+- The `EventSource`, `FeatureExtractor`, and `AnomalyDetector` base classes are abstract contracts, not runnable implementations.
+- Concrete implementations exist for the synthetic source, rolling statistics extractor, z-score detector, Isolation Forest detector, and max-score ensemble.
 - Autoencoder comparison method (`DECISIONS.md` §5)
 - PostgreSQL/TimescaleDB persistence, Redis caching (currently in-memory only, sufficient for
   a single-process prototype; DB introduced when persistence/multi-process state is needed)
-- React dashboard, WebSocket live feed
+- Local browser dashboard showing scored events and explanations (implemented for synthetic demo)
+- Push-based WebSocket/SSE updates (optional; polling is sufficient for the first working UI)
 - Graph-based fraud-ring detection, adversarial evasion testing (`DECISIONS.md` §9)
 
-This scoping is deliberate: Review 2 asks for ~20% completion, requirement analysis, design,
-component selection, and a feasibility-demonstrating prototype — not a finished product. The
-vertical slice above (generator → features → two detector layers → API) is the smallest
-complete path that actually proves the pipeline concept works, rather than a wider set of
-disconnected stubs.
+The backend and first dashboard flow demonstrate feasibility, not broker deployment. There is
+no live broker data source, persistence, or production deployment. The broker must provide an
+authorized adapter that maps its telemetry to the normalized event contract. See `PROGRESS.md`
+for remaining work and `EVALUATION_BASELINE.md` for detector measurements and caveats.
 
 ## 4. Component selection summary
 
-See `DECISIONS.md` §7 for the full table and reasoning. Summary for Review 2 talking points:
+See `DECISIONS.md` §7 for the current status and rationale. Summary:
 
 | Component | Choice | One-line why |
 |---|---|---|
 | API framework | FastAPI | Async, Pydantic validation, native WebSocket support for later dashboard |
 | Detection (statistical) | Rolling z-score | Interpretable, zero training data, cheap in real time |
-| Detection (ML comparison) | Isolation Forest | Fit on normal-only data; benchmarked with z-score (Liu et al. 2008) |
+| Detection signals | Rolling z-score + Isolation Forest signal | Current backend combines risk signals; internal component metrics support validation |
 | Containerization | Docker | Reproducible for grading/demo |
 | Architecture style | Modular monolith | No premature microservices; extract only where load-tested |

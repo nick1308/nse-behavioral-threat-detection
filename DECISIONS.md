@@ -26,18 +26,18 @@ Credential validity and behavioral legitimacy are different questions. This is t
 
 ---
 
-## 3. Why Isolation Forest as the ML anomaly method
+## 3. Detection is a means to the product outcome
 
-Isolation Forest detects anomalies by measuring how easily a data point can be isolated by random partitioning — anomalies, being rare and different, require fewer partitions to isolate than normal points. Three properties make it the right first choice for us specifically:
+Isolation Forest detects anomalies by measuring how easily a data point can be isolated by random partitioning. It is one signal in the current backend, not the project objective. The product objective is to surface actionable, explainable risk assessments in an analyst interface. Model comparisons are supporting validation only.
 
 1. **No labeled fraud data required for training** — it's trained on (mostly) normal behavior and doesn't need a labeled fraud dataset we don't have.
-2. **Linear time complexity, low memory** — matters for a student-scale real-time pipeline; we can't afford an expensive model.
-3. **Established, well-understood, and defensible in a review** — it's the most-cited unsupervised anomaly detection method in this space, meaning we can point to prior art when asked to justify it, rather than defending something exotic.
+2. It is a manageable first comparison for a student-scale prototype; actual cost is measured rather than assumed.
+3. Its published method and implementation are documented, which supports a clear explanation in project reviews.
 
 **Reference:** Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008). *Isolation Forest*. Proceedings of the 8th IEEE International Conference on Data Mining (ICDM'08), 413–422. https://doi.org/10.1109/ICDM.2008.17
 (Extended journal version: Liu, Ting, & Zhou (2012). *Isolation-Based Anomaly Detection*. ACM Transactions on Knowledge Discovery from Data, 6(1), 1–39.)
 
-**Why not skip straight to deep learning:** the original paper's own comparison shows iForest matching or beating distance/density-based methods (SVM, LOF) on accuracy while being dramatically faster, since it avoids pairwise distance computation entirely — exactly the tradeoff a 3-person team on a real-time budget needs.
+**Measured status:** in the seed-42 run, standalone Forest event recall was 3.5% with 5.2% FPR; it missed API abuse and automated trading. The current API includes its signal in a maximum-score ensemble. These metrics inform whether that signal improves the user-facing risk assessment; they do not define project completion. See `docs/EVALUATION_BASELINE.md`.
 
 ---
 
@@ -51,7 +51,7 @@ Before the ML layer, we compute rolling per-account statistics (mean/std of acti
 
 ---
 
-## 5. Why Autoencoder is future scope, not core — with evidence, not just a guess
+## 5. Why Autoencoder is deferred
 
 We considered an autoencoder (reconstruction-error-based anomaly detection) as an alternative/addition to Isolation Forest. The literature is genuinely mixed on this, which is exactly why we're treating it as a comparison method rather than betting the core system on it:
 
@@ -60,7 +60,7 @@ We considered an autoencoder (reconstruction-error-based anomaly detection) as a
 **Reference (cautionary):** A 2026 evaluation of autoencoder architectures for credit-card fraud detection found significant reconstruction-error overlap between normal and fraudulent classes, with precision dropping quickly as recall increases — i.e., autoencoders are not a free upgrade over simpler methods and need careful architecture/threshold tuning to beat baselines.
 — *An Evaluation of Autoencoder Architectures for Fraud Detection in Credit Card Transactions* (IEEE Computer Society, 2026)
 
-**Decision:** Isolation Forest is our core ML layer (cheaper, faster, sufficient literature support). Autoencoder is evaluated as a comparison method in the Jan evaluation phase — this is exactly what our "compare baseline vs. ML approach(es)" evaluation slide already promises, so it costs us nothing to keep it in scope as a second ML method rather than a competing core decision.
+**Decision:** an autoencoder is optional future work, not part of the committed prototype. First run a fair held-out evaluation of the existing baseline and Forest. Adding another model before that would increase tuning effort without evidence it solves the observed weak Forest recall.
 
 ---
 
@@ -82,16 +82,16 @@ Glasser, J., & Lindauer, B. (2013). *Bridging the Gap: A Pragmatic Approach to G
 
 | Layer | Choice | Why |
 |---|---|---|
-| API framework | FastAPI | Async, built-in request validation (Pydantic), native WebSocket support needed for the live dashboard |
+| API framework | FastAPI | Pydantic request validation; currently exposes `/health` and `/score` |
 | Dependency management | pip + requirements.txt | Simplest for a 3-person team; no extra tooling to install/sync |
-| Event storage | PostgreSQL (+ TimescaleDB if benchmarks justify it) | Relational, well understood, time-series extension available if event volume needs it |
-| Caching | Redis | Low-latency current-state lookups for the risk engine |
-| Detection — baseline | Rolling z-score per account | Interpretable, no training data needed, sets a measurable floor (see §4) |
-| Detection — ML | Isolation Forest (core), Autoencoder (comparison) | See §3 and §5 |
-| Frontend | React + WebSockets | Matches the "real-time" claim; live alert feed |
-| Containerization | Docker | Standard, reproducible for grading/demo |
+| Event storage | In-memory process state; database not selected | Suitable for the current single-process feasibility prototype; persistence remains open |
+| Caching | None | No measured need at current prototype scale |
+| Detection — baseline | Rolling z-score per account | Interpretable statistical baseline; see §4 |
+| Detection — ML | Isolation Forest comparison plus max-score ensemble | Forest standalone performance is weak in current benchmark; see §3 |
+| Frontend | Local analyst dashboard served by FastAPI | HTML/CSS/JavaScript avoids a separate build toolchain for the demo; this is implemented, while a polished production console remains future work |
+| Containerization | Docker files present; build unverified | Intended reproducibility; local engine was unavailable at last build attempt |
 
-**Engineering principle carried through all of the above:** start as a modular monolith; introduce streaming/queue infrastructure (e.g. Kafka) only where a load test actually shows it's needed, not preemptively. Every architecture choice is backed by a measurement, not an assumption — this is also directly defensible if a guide asks "why didn't you use X trendy technology."
+**Engineering principle:** keep the system a modular monolith while completing the usable product. PostgreSQL, Redis, Kafka, and WebSockets remain optional until persistence, scale, or push-update requirements justify them. The UI itself is not optional; it is a core missing deliverable.
 
 ---
 

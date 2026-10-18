@@ -4,6 +4,10 @@ IDP project: a real-time behavioral threat detection prototype for a simulated
 Indian retail trading platform. It learns account and API-client baselines,
 scores unusual events, and returns an explainable 0–100 risk score.
 
+Current standing, measured results, limitations, and a finish plan are in
+[PROGRESS.md](PROGRESS.md). This is a tested feasibility prototype, not a
+production deployment; its evaluation uses synthetic planted patterns.
+
 ## Current implementation
 
 - `ingestion/`: seeded synthetic event source with account takeover, API abuse,
@@ -23,8 +27,11 @@ The `base.py` files define the stable `EventSource`, `FeatureExtractor`, and
 `AnomalyDetector` contracts. At API import, the demo Forest is fit and calibrated
 on separate, reproducible normal-only synthetic streams. The model remains in
 memory for that process, and Forest scoring is held during account cold start.
-Persistence, Kafka, a dashboard, graph-based fraud rings, and adversarial evasion
-tests are outside the current prototype scope.
+The local analyst dashboard connects to the API, replays synthetic events, and
+shows scored events with reasons and recent history. It is a demonstration UI,
+not a broker connection; state is process-local and not persisted. Durable
+storage, Kafka, graph-based fraud rings, and adversarial evasion tests remain
+future work.
 
 ## Setup
 
@@ -59,6 +66,7 @@ uvicorn threat_detection.api.main:app --app-dir src --reload
 ```
 
 Then open `http://localhost:8000/docs` or check `http://localhost:8000/health`.
+The analyst dashboard is at `http://localhost:8000/`.
 
 ## Run with Docker
 

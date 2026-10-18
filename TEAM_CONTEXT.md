@@ -18,9 +18,10 @@ risk score (not a black-box "fraud/not fraud" label). IDP college project, Aug 2
 Feb/Mar 2027 (~7 months), team of 3: Ankit V, Tusya S, Vishal Basker, guided by Dr.
 Karmel A.
 
-**Not** a price-prediction or market-manipulation tool — see `docs/LITERATURE_SURVEY.md`
-for exactly how this differs from existing market-surveillance research (that field
-studies price/order-book patterns; we study individual account behavior).
+**Not** a price-prediction or market-manipulation tool. A standalone literature-survey
+file is not present in this checkout; related references and rationale are recorded in
+`DECISIONS.md` and `docs/REQUIREMENTS.md` and should be consolidated before claiming a
+completed survey.
 
 ## Why the key decisions were made — read `DECISIONS.md` for full detail, summary here
 
@@ -35,8 +36,8 @@ studies price/order-book patterns; we study individual account behavior).
 - **Modular monolith**, not microservices — no premature infrastructure; each layer
   (ingestion/features/detection/api) is a separate Python package behind an abstract
   interface so it can be swapped or extracted later without a rewrite.
-- **Dashboard and persistence are deferred** — keep the prototype a measured modular
-  monolith until a course milestone or load test makes those components necessary.
+- **A local analyst dashboard is implemented for the synthetic demo.** Broker-specific
+  integration and persistent event storage are not implemented.
 
 ## Where the numbers come from — every threshold is either cited or flagged as ours
 
@@ -52,18 +53,19 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 |---|---|---|
 | Requirement analysis | Done | `docs/REQUIREMENTS.md` |
 | System design + architecture diagram | Done | `docs/DESIGN.md` |
-| Literature survey + research gap | Done | `docs/LITERATURE_SURVEY.md` |
+| Literature references and rationale | Partial; no standalone survey document | `DECISIONS.md`, `docs/REQUIREMENTS.md` |
 | Synthetic event generator (3 attack types, labeled, fixed-seed reproducible with fixed start time) | Implemented | `src/threat_detection/ingestion/synthetic.py` |
 | Rolling features (quantity/value, device/login context, per-client API rate, matched cancel sequence, market-time context) | Implemented | `src/threat_detection/features/rolling_stats.py` |
 | Explainable z-score detector (risk score and attack-pattern guess) | Implemented | `src/threat_detection/detection/zscore.py` |
-| FastAPI `/health` and `/score` | Implemented | `src/threat_detection/api/main.py` |
+| FastAPI `/health`, `/score`, event history, synthetic replay, dashboard | Implemented for local demo; no broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **55 passed, 1 dependency deprecation warning** | `.venv\Scripts\pytest.exe -q`, after API integration |
+| **Test suite** | **60 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
-POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, or use the
-interactive docs at `http://localhost:8000/docs`.
+POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
+interactive docs at `http://localhost:8000/docs`, or open the analyst dashboard at
+`http://localhost:8000/` and select **Run demo stream**.
 
 ## Current gaps and next work
 
@@ -75,8 +77,10 @@ interactive docs at `http://localhost:8000/docs`.
    detector scoring, not request validation, transport, or process startup/model fitting.
 3. **Model lifecycle.** The API fits a demo model from fixed normal-only synthetic histories
    at module import; persistence, retraining, and loading a real account population remain open.
-4. **Persistence and analyst dashboard.** Remain deferred until required by a milestone
-   or supported by a measured need.
+4. **Analyst dashboard workflow.** A first local UI replays events and shows reasons and
+   history; review it in a browser and improve the detail and accessibility based on use.
+5. **Persistence and broker adapter.** Neither is implemented; define a normalized broker
+   event mapping and determine required restart/history behavior.
 
 ## Repo map
 
@@ -94,6 +98,10 @@ src/threat_detection/
 tests/                        -- focused tests per layer and evaluation scenario
 ```
 
+See `PROGRESS.md` for the product-oriented finish plan and alternatives. Detector metrics
+are supporting validation, not the project's purpose. The historical materials in
+`Claude outputs/` are Review II snapshots and are not current implementation evidence.
+
 ## Ground rules if you're picking up work here
 
 - **Don't let the detection pipeline see `is_attack`/`attack_type`** — those fields
@@ -101,7 +109,7 @@ tests/                        -- focused tests per layer and evaluation scenario
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 55 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 60 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

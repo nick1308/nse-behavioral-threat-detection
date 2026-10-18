@@ -15,16 +15,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field
 
 from threat_detection.detection.ensemble import ZScoreIsolationForestEnsemble
 from threat_detection.detection.zscore import ZScoreAnomalyDetector
 from threat_detection.evaluation.harness import fit_isolation_forest
 from threat_detection.features.rolling_stats import RollingStatsFeatureExtractor
+from threat_detection.ingestion.schema import NormalizedEvent as EventIn
 from threat_detection.ingestion.synthetic import SyntheticEventSource
 
 app = FastAPI(title="NSE Behavioral Threat Detection", version="0.1.0")
@@ -59,75 +60,6 @@ def _build_detector() -> ZScoreIsolationForestEnsemble:
 
 
 _detector = _build_detector()
-
-
-class EventIn(BaseModel):
-    """Normalized broker-event payload accepted by the scoring API.
-
-    Broker-specific adapters should map their authorized telemetry into this
-    contract. Ground-truth fields are explicitly rejected; unknown fields are
-    rejected rather than silently discarded.
-    """
-
-    event_id: str
-    account_id: str
-    timestamp: str
-    event_type: Literal[
-        "LOGIN", "LOGOUT", "VIEW_STOCK", "ORDER", "CANCEL_ORDER",
-        "API_REQUEST", "TOKEN_REFRESH", "PASSWORD_CHANGE", "DEVICE_CHANGE",
-    ]
-    device_id: Optional[str] = None
-    ip_address: Optional[str] = None
-    session_id: str
-    success: Optional[bool] = None
-    auth_method: Optional[Literal["password", "token", "mfa"]] = None
-    symbol: Optional[str] = None
-    order_type: Optional[Literal["buy", "sell"]] = None
-    quantity: Optional[int] = None
-    price: Optional[float] = None
-    order_value: Optional[float] = None
-    time_since_order_ms: Optional[float] = None
-    client_id: Optional[str] = None
-    original_order_id: Optional[str] = None
-    endpoint: Optional[str] = None
-    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = None
-    status_code: Optional[int] = None
-    token_type: Optional[Literal["access", "refresh"]] = None
-    initiated_by: Optional[Literal["user", "admin_reset"]] = None
-    previous_device_id: Optional[str] = None
-    new_device_id: Optional[str] = None
-
-    model_config = {
-        "extra": "forbid",
-        "json_schema_extra": {
-            "example": {
-                "event_id": "evt-demo-1",
-                "account_id": "ACC0001",
-                "timestamp": "2026-09-18T10:15:00+00:00",
-                "event_type": "ORDER",
-                "device_id": "device-abc123",
-                "ip_address": "10.0.0.5",
-                "session_id": "sess-1",
-                "order_value": 50000.0,
-            }
-        }
-    }
-
-    @field_validator("timestamp")
-    @classmethod
-    def timestamp_must_be_iso8601(cls, value: str) -> str:
-        try:
-            datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError as error:
-            raise ValueError("timestamp must be an ISO 8601 datetime") from error
-        return value
-
-    @model_validator(mode="before")
-    @classmethod
-    def reject_ground_truth(cls, value: Any) -> Any:
-        if isinstance(value, dict) and {"is_attack", "attack_type"}.intersection(value):
-            raise ValueError("ground-truth fields are not accepted by the scoring API")
-        return value
 
 
 class ScoreOut(BaseModel):

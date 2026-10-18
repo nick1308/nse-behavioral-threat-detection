@@ -55,12 +55,13 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | System design + architecture diagram | Done | `docs/DESIGN.md` |
 | Literature references and rationale | Partial; no standalone survey document | `DECISIONS.md`, `docs/REQUIREMENTS.md` |
 | Synthetic event generator (3 attack types, labeled, fixed-seed reproducible with fixed start time) | Implemented | `src/threat_detection/ingestion/synthetic.py` |
+| Canonical normalized event model and abstract broker-mapping contract | Implemented as reusable model and extension point; no broker-specific adapter | `src/threat_detection/ingestion/schema.py`, `src/threat_detection/ingestion/base.py` |
 | Rolling features (quantity/value, device/login context, per-client API rate, matched cancel sequence, market-time context) | Implemented | `src/threat_detection/features/rolling_stats.py` |
 | Explainable z-score detector (risk score and attack-pattern guess) | Implemented | `src/threat_detection/detection/zscore.py` |
 | FastAPI `/health`, `/score`, event history, synthetic replay, dashboard | Implemented for local demo; no broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **60 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **72 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
@@ -79,8 +80,9 @@ interactive docs at `http://localhost:8000/docs`, or open the analyst dashboard 
    at module import; persistence, retraining, and loading a real account population remain open.
 4. **Analyst dashboard workflow.** A first local UI replays events and shows reasons and
    history; review it in a browser and improve the detail and accessibility based on use.
-5. **Persistence and broker adapter.** Neither is implemented; define a normalized broker
-   event mapping and determine required restart/history behavior.
+5. **Persistence and broker adapter.** The normalized contract and abstract mapping
+   interface exist, but no broker-specific mapping is implemented. Choose a broker
+   schema, then determine restart/history behavior and add persistence.
 
 ## Repo map
 
@@ -91,6 +93,8 @@ DECISIONS.md                 -- why every technical choice was made, with citati
 EVENT_SCHEMA.md               -- the event contract every layer is built against
 src/threat_detection/
   ingestion/synthetic.py    -- generates events + plants attacks
+  ingestion/schema.py       -- canonical broker-neutral event contract
+  ingestion/base.py         -- source and broker-adapter extension points
   features/rolling_stats.py -- turns events into behavioral feature vectors
   detection/zscore.py       -- scores features, explains the score
   evaluation/                -- ground-truth-safe replay and baseline report
@@ -109,7 +113,7 @@ are supporting validation, not the project's purpose. The historical materials i
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 60 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 72 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

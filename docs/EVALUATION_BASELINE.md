@@ -57,8 +57,8 @@ interpret sparse order, cancellation, login, and API signals in context.
 | Account takeover scenario recall | 100.0% (2 / 2) | 100.0% (2 / 2) |
 | API abuse scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
 | Automated trading scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
-| Mean per-event feature-plus-detector latency | 0.007 ms | 10.662 ms |
-| 95th percentile per-event feature-plus-detector latency | 0.016 ms | 11.855 ms |
+| Mean per-event feature-plus-detector latency | 0.007 ms | 14.319 ms |
+| 95th percentile per-event feature-plus-detector latency | 0.015 ms | 16.912 ms |
 
 The combined detector uses the larger of the z-score and Isolation Forest
 scores. It retains the z-score attack-type guess and includes explanations from
@@ -70,8 +70,8 @@ each layer that raised a score. Its fixed-seed result was:
 | Attack-event recall | 90.7% (78 / 86) |
 | False-positive rate | 3.0% (27 / 900) |
 | Recall by attack type | 100.0% for each type |
-| Mean per-event feature-plus-detector latency | 10.540 ms |
-| 95th percentile per-event feature-plus-detector latency | 12.806 ms |
+| Mean per-event feature-plus-detector latency | 14.148 ms |
+| 95th percentile per-event feature-plus-detector latency | 16.066 ms |
 
 The forest's validation cutoff targeted 5% FPR; the measured evaluation FPR
 was 5.2%. Its recall is far below the 80% working target and misses API abuse
@@ -92,9 +92,9 @@ seed-42 comparison. These seeds alter generator
 profile choices, not planted attack mechanisms; treat this as a stability check
 on one synthetic generator, not independent generalization evidence.
 
-Latency values above come from one fixed-seed run on this environment and can
-vary across runs and machines. The five-seed check reports detection metrics,
-not a latency distribution.
+Latency values above are from a single current-environment run on 2026-10-18
+and can vary across runs and machines. The five-seed check reports detection
+metrics, not a latency distribution.
 
 The z-score and combined metric tables above describe the current scoring
 pipeline. These are synthetic-generator measurements; four planted scenarios

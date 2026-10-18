@@ -10,8 +10,9 @@ production deployment; its evaluation uses synthetic planted patterns.
 
 ## Current implementation
 
-- `ingestion/`: seeded synthetic event source with account takeover, API abuse,
-  and automated trading scenarios.
+- `ingestion/`: canonical `NormalizedEvent` contract, abstract broker adapter
+  extension point, and seeded synthetic source with account takeover, API abuse,
+  and automated trading scenarios. A broker-specific adapter is not implemented.
 - `features/`: online order-size/value statistics, account device and login
   history, per-client request rates, matched order-cancel timing, and Indian
   regular-session context.
@@ -23,8 +24,9 @@ production deployment; its evaluation uses synthetic planted patterns.
   recall, and per-event processing latency.
 - `api/`: FastAPI `/health` and `/score` endpoints.
 
-The `base.py` files define the stable `EventSource`, `FeatureExtractor`, and
-`AnomalyDetector` contracts. At API import, the demo Forest is fit and calibrated
+The ingestion `base.py` defines `EventSource` and `BrokerEventAdapter` contracts;
+the feature and detection `base.py` files define `FeatureExtractor` and
+`AnomalyDetector`. `NormalizedEvent` is the shared input model. At API import, the demo Forest is fit and calibrated
 on separate, reproducible normal-only synthetic streams. The model remains in
 memory for that process, and Forest scoring is held during account cold start.
 The local analyst dashboard connects to the API, replays synthetic events, and

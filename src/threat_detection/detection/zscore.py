@@ -36,7 +36,7 @@ _LOW_VARIANCE_THRESHOLD_MS2 = 100.0
 # to revise once real precision/recall data exists to tune against.
 _WEIGHTS = {
     "device_time_takeover": 50.0,  # correlated unseen-device login and oversized order
-    "order_size_zscore": 15.0,
+    "order_deviation": 15.0,
     "api_request_rate_zscore": 30.0,
     "automated_trading": 50.0,  # repeated near-zero-variance order-cancel timing
 }
@@ -55,9 +55,9 @@ class ZScoreAnomalyDetector(AnomalyDetector):
         is_new_device = features.get("is_new_device", 0.0) >= 1.0
         is_new_hour = features.get("is_new_active_hour", 0.0) >= 1.0
         takeover_context = features.get("account_takeover_context", 0.0) >= 1.0
-        order_size_z = features.get("order_size_zscore", 0.0)
+        order_quantity_z = features.get("order_size_zscore", 0.0)
         order_value_z = features.get("order_value_zscore", 0.0)
-        order_z = max(order_size_z, order_value_z)
+        order_z = max(order_quantity_z, order_value_z)
         api_rate_z = features.get("api_request_rate_zscore", 0.0)
         cancel_variance = features.get(
             "matched_cancel_delay_variance_ms",
@@ -80,36 +80,43 @@ class ZScoreAnomalyDetector(AnomalyDetector):
         # legitimate trade). Requiring the *combination* is what keeps this
         # from being a trigger-happy false-positive machine.
         takeover_order_signal = (
-            order_size_z >= _ZSCORE_ALERT_THRESHOLD
+            order_z >= _ZSCORE_ALERT_THRESHOLD
             and (takeover_context or (is_new_device and is_new_hour))
         )
         if takeover_order_signal:
             risk += _WEIGHTS["device_time_takeover"]
+            if order_value_z > order_quantity_z:
+                order_reason = (
+                    f"order value {order_value_z:.1f}σ above the account's historical average"
+                )
+            else:
+                order_reason = (
+                    f"order quantity {order_quantity_z:.1f}σ above the account's historical average"
+                )
             if takeover_context:
                 reasons.append(
-                    f"order size {order_size_z:.1f}σ above the account's historical average "
+                    f"{order_reason} "
                     "followed a recent login from an unseen device at an unusual hour"
                     f"{market_context_suffix}"
                 )
             else:
                 reasons.append(
-                    f"new device and login hour for this account, combined with an order "
-                    f"{order_z:.1f}σ above the account's historical average size"
+                    f"new device and login hour for this account, combined with {order_reason}"
                 )
             attack_type_guess = "account_takeover"
         elif order_z >= _ZSCORE_ALERT_THRESHOLD:
             # Oversized order on its own is still worth a smaller score bump
             # and an explanation, just not a full takeover verdict.
-            partial = _WEIGHTS["order_size_zscore"] * min(order_z / _ZSCORE_ALERT_THRESHOLD, 2.0)
+            partial = _WEIGHTS["order_deviation"] * min(order_z / _ZSCORE_ALERT_THRESHOLD, 2.0)
             risk += partial
-            if order_value_z > order_size_z:
+            if order_value_z > order_quantity_z:
                 reasons.append(
                     f"order value {order_value_z:.1f}σ above this account's historical average"
                     f"{market_context_suffix}"
                 )
             else:
                 reasons.append(
-                    f"order size {order_size_z:.1f}σ above this account's historical average"
+                    f"order quantity {order_quantity_z:.1f}σ above this account's historical average"
                     f"{market_context_suffix}"
                 )
 

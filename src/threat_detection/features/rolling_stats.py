@@ -215,11 +215,14 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         }
 
         if event_type == "ORDER":
-            order_value = float(event.get("order_value", 0.0))
-            order_size = float(event.get("quantity", order_value))
-            features["order_size_zscore"] = state.order_size.zscore(order_size)
-            state.order_size.update(order_size)
-            if "order_value" in event:
+            quantity = event.get("quantity")
+            order_value = event.get("order_value")
+            if quantity is not None:
+                order_size = float(quantity)
+                features["order_size_zscore"] = state.order_size.zscore(order_size)
+                state.order_size.update(order_size)
+            if order_value is not None:
+                order_value = float(order_value)
                 features["order_value_zscore"] = state.order_value.zscore(order_value)
                 state.order_value.update(order_value)
             order_id = str(event.get("event_id", ""))

@@ -10,7 +10,7 @@ source is synthetic and is not a live broker connection.
 |---|---|---|
 | `event_id` | string | Unique per event; may use the broker's ID or a generated UUID |
 | `account_id` | string | The account this event belongs to |
-| `timestamp` | ISO 8601 datetime | When the event occurred |
+| `timestamp` | ISO 8601 datetime with timezone | When the event occurred; adapters should normalize to UTC |
 | `event_type` | enum | One of the types below |
 | `device_id` | string or null | Pseudonymous device identifier when the broker is authorized to provide one; nullable because some sources do not expose it |
 | `ip_address` | string or null | Network-origin identifier when available and approved; nullable and should be minimized/pseudonymized where appropriate |
@@ -37,22 +37,22 @@ _(no extra fields — common fields only)_
 |---|---|
 | `symbol` | string |
 | `order_type` | enum: `buy`, `sell` |
-| `quantity` | int |
-| `price` | decimal |
-| `order_value` | decimal (`quantity * price`, stored directly for fast feature computation) |
+| `quantity` | positive int |
+| `price` | positive finite number |
+| `order_value` | positive finite number (`quantity * price`, stored directly for fast feature computation) |
 
 ### CANCEL_ORDER
 | Field | Type |
 |---|---|
-| `original_order_id` | UUID (references the ORDER event) |
-| `time_since_order_ms` | int |
+| `original_order_id` | string (references the source order; preserve the broker's identifier) |
+| `time_since_order_ms` | non-negative number |
 
 ### API_REQUEST
 | Field | Type |
 |---|---|
 | `endpoint` | string |
 | `method` | enum: `GET`, `POST`, `PUT`, `DELETE` |
-| `status_code` | int |
+| `status_code` | int from 100 through 599 |
 | `client_id` | string (for API-client-level baselining, separate from account_id) |
 
 ### TOKEN_REFRESH
@@ -71,10 +71,15 @@ _(no extra fields — common fields only)_
 | `previous_device_id` | string |
 | `new_device_id` | string |
 
-The API validates the event type and rejects undeclared fields. Type-specific
-attributes are optional in the transport model because adapters may have
-partial telemetry; each detector must treat missing signals as unavailable,
-not as proof of normal or malicious behavior.
+`src/threat_detection/ingestion/schema.py` implements this canonical contract
+as `NormalizedEvent`; the API accepts the same model. The abstract
+`BrokerEventAdapter` in `ingestion/base.py` is the extension point for mapping a
+broker-specific record into it. No broker-specific adapter is implemented.
+The model validates the event type and rejects undeclared fields. Type-specific
+attributes are optional because adapters may have partial telemetry; each
+detector must treat missing signals as unavailable, not as proof of normal or
+malicious behavior. Timestamp offsets are required. If an order has neither a
+quantity nor an order value, it does not update that account's order baseline.
 
 ## Ground-truth labeling (synthetic data only)
 

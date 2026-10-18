@@ -51,14 +51,33 @@ def test_order_size_zscore_is_zero_until_enough_history_exists():
     assert features["order_size_zscore"] == 0.0
 
 
-def test_order_size_zscore_flags_a_large_deviation_from_account_history():
+def test_order_value_zscore_flags_a_large_deviation_from_account_history():
     extractor = RollingStatsFeatureExtractor()
     # Build up a stable history of small, similar order sizes.
     for i in range(10):
         extractor.extract(_event(event_id=f"hist-{i}", order_value=100.0 + i))
     # Now a wildly larger order should produce a large positive z-score.
     features = extractor.extract(_event(event_id="spike", order_value=100_000.0))
-    assert features["order_size_zscore"] > 3.0
+    assert features["order_value_zscore"] > 3.0
+
+
+def test_order_without_quantity_or_value_does_not_pollute_the_account_baseline():
+    extractor = RollingStatsFeatureExtractor()
+    for index in range(3):
+        extractor.extract(
+            _event(
+                event_id=f"missing-order-{index}",
+                quantity=None,
+                order_value=None,
+            )
+        )
+
+    observed_order = extractor.extract(
+        _event(event_id="first-observed-order", quantity=100, order_value=10_000.0)
+    )
+
+    assert observed_order["order_size_zscore"] == 0.0
+    assert observed_order["order_value_zscore"] == 0.0
 
 
 def test_api_request_rate_zscore_flags_a_burst():

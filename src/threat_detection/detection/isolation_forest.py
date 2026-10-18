@@ -96,9 +96,10 @@ class IsolationForestAnomalyDetector(AnomalyDetector):
         vector = [self._vector(features)]
         decision_value = float(self._model.decision_function(vector)[0])
         is_outlier = decision_value < self._decision_cutoff
-        # 75 is an alert marker for the evaluation harness threshold of 50;
-        # it is not a probability or calibrated severity.
-        risk_score = 75.0 if is_outlier else 0.0
+        # The forest produces a binary outlier decision, not calibrated
+        # severity. An outlier reaches the minimum review threshold but does
+        # not by itself imply a high-risk event.
+        risk_score = 50.0 if is_outlier else 0.0
         return {
             "risk_score": risk_score,
             "explanation": (

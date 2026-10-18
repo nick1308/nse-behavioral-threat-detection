@@ -35,7 +35,18 @@ def test_isolation_forest_calibrates_cutoff_from_a_separate_normal_sample():
     detector.calibrate(normal, target_false_positive_rate=0.1)
     result = detector.score({"api_request_rate_zscore": 20.0, "is_regular_market_hours": 0.0})
 
-    assert result["risk_score"] in {0.0, 75.0}
+    assert result["risk_score"] in {0.0, 50.0}
+
+
+def test_binary_forest_outlier_maps_only_to_minimum_review_score(monkeypatch):
+    detector = IsolationForestAnomalyDetector(n_estimators=10)
+    detector._is_fitted = True
+    monkeypatch.setattr(detector._model, "decision_function", lambda vectors: [-1.0])
+
+    result = detector.score({})
+
+    assert result["risk_score"] == 50.0
+    assert "outside the learned normal envelope" in result["explanation"]
 
 
 def test_isolation_forest_rejects_invalid_calibration_rate():

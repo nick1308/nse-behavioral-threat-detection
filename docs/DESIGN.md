@@ -62,7 +62,8 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
    per event.
 3. The z-score detector computes interpretable statistical alerts. A fitted Isolation Forest
    scores the same feature vector. The API uses the maximum of their 0–100 alert scores and
-   returns both component scores; the attack-type guess remains the z-score layer's guess.
+   returns both component scores. A Forest-only outlier gets the minimum review score (50),
+   not an unsupported high-severity score; the attack-type guess remains the z-score layer's guess.
    Forest scoring is suppressed until the account has prior event history, avoiding cold-start
    alerts before a per-account baseline can exist.
 4. `POST /score` accepts one event, rejects `is_attack` and `attack_type`, then returns

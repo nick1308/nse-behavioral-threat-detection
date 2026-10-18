@@ -15,7 +15,7 @@ stronger validation remain.
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
 | Analyst UI | `████████░░` 80% | Dashboard, risk reasons, filters, event history, and seeded replay work; visual/user review remains |
 | End-to-end product workflow | `███████░░░` 70% | UI calls FastAPI replay/history; durable storage and broker adapter are absent |
-| Reliability and validation | `██████░░░░` 60% | 77 tests pass; held-out attack variants and deployment checks remain |
+| Reliability and validation | `██████░░░░` 60% | 78 tests pass; held-out attack variants and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -28,10 +28,13 @@ are not general validation.
 - A Python backend with abstract `EventSource`, `FeatureExtractor`, and
   `AnomalyDetector` contracts and concrete synthetic source, rolling feature
   extractor, z-score detector, Isolation Forest, and max-score ensemble.
+- A Forest outlier by itself now sets the minimum review score of 50 because
+  the model emits a binary outlier flag, not calibrated severity. Higher
+  displayed risk comes from stronger z-score evidence.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  77 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  78 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist, but a Docker image build has not been verified
   because the local Docker engine was unavailable during the last attempt.
@@ -42,7 +45,9 @@ are not general validation.
 - Live local smoke check: health, dashboard, CSS, and JavaScript returned 200;
   two seed-42 runs each scored 283 synthetic events, produced 87 alerts, and
   returned identical event histories with no ground-truth fields exposed.
-  These counts describe the demo replay, not detector generalization.
+  Twelve Forest-only outliers were scored at exactly 50 (review), with none
+  promoted to high risk by that binary signal alone. These counts describe the
+  demo replay, not detector generalization.
 - `NormalizedEvent` in `ingestion/schema.py` is the canonical broker-neutral
   event contract used by the API. `ConfiguredFieldMapAdapter` maps flat source
   field names and event-type aliases into it; `BrokerEventAdapter.normalize()`

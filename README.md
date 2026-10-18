@@ -19,7 +19,9 @@ production deployment; its evaluation uses synthetic planted patterns.
   regular-session context.
 - `detection/`: explainable rolling z-score rules plus a separately fitted
   Isolation Forest anomaly layer. The API combines them by taking the larger
-  score and returns both layer scores; the Forest does not assign attack types.
+  score and returns both layer scores; a Forest-only outlier reaches the review
+  threshold but is not promoted to high severity; the Forest does not assign
+  attack types.
 - `evaluation/`: ground-truth-safe replay, clean-stream model fitting and
   calibration, scenario and event recall, false-positive rate, per-attack-type
   recall, and per-event processing latency.

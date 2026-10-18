@@ -63,7 +63,7 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | FastAPI `/health`, `/score`, event history, synthetic replay, dashboard | Implemented for local demo; no broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **82 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **83 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
@@ -117,7 +117,7 @@ are supporting validation, not the project's purpose. The historical materials i
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 82 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 83 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

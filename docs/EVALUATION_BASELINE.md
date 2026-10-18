@@ -130,8 +130,18 @@ hand-selected behavior signals, and they do not represent real broker traffic.
 
 The automated-trading variation exposes an event-level limitation: the
 scenario is eventually flagged, but only 7 of its 12 events cross the
-threshold. The checks help identify brittle magnitudes and timing assumptions;
-four total scenarios do not establish expected broker performance.
+threshold. Its detector rule requires three completed matched order/cancel
+pairs with low timing variance before alerting; the first two pairs and the
+third order occur before enough evidence exists. The checks help identify
+brittle magnitudes and timing assumptions; four total scenarios do not
+establish expected broker performance.
+
+For attribution, the z-score layer alone had event recall of 50.0% for the
+takeover variation, 83.3% for API abuse, and 58.3% for automated trading. The
+combined pipeline's Forest signal moved one additional takeover and one
+additional API event to the review floor; it did not improve event recall for
+the cancellation-timing case. This separates the contribution of each signal
+without treating this as an algorithm contest.
 
 The market-time feature uses the NSE regular equity time window of 09:15–15:30
 India Standard Time on weekdays. It does not load the exchange holiday

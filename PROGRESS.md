@@ -15,7 +15,7 @@ stronger validation remain.
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
 | Analyst UI | `████████░░` 80% | Dashboard, risk reasons, filters, event history, and seeded replay work; visual/user review remains |
 | End-to-end product workflow | `███████░░░` 70% | UI calls FastAPI replay/history; durable storage and broker adapter are absent |
-| Reliability and validation | `██████░░░░` 60% | 82 tests pass; curated variations are checked, independent attack data and deployment checks remain |
+| Reliability and validation | `██████░░░░` 60% | 83 tests pass; curated variations are checked, independent attack data and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -34,7 +34,7 @@ are not general validation.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  82 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  83 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist. Docker CLI is present, but the Docker engine is
   unavailable in this environment, so an image build remains unverified.

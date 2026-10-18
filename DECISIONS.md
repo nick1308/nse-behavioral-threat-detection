@@ -9,7 +9,7 @@ This document exists to answer the guide's feedback directly: what are we buildi
 
 ## 1. End Goal (concrete, measurable)
 
-By the end of the program, a working system that ingests simulated trading events in real time, flags account takeover, API abuse, and automated-trading behavior with an explainable 0–100 risk score, and demonstrably catches **≥80% of planted attacks (recall)** at a **false-positive rate under 10%** and **detection latency under 5 seconds**, measured against our own labeled synthetic dataset.
+By the end of the program, a working behavioral-security product designed to accept authorized broker events through a provider-specific adapter, flag account takeover, API abuse, and automated-trading behavior with an explainable 0–100 risk score, and expose those risks and reasons in an analyst dashboard. Synthetic events are the local demonstration and labeled evaluation source; they are not a broker feed. Working evaluation targets are **≥80% of planted attacks (recall)**, **false-positive rate under 10%**, and **detection latency under 5 seconds**, measured on our labeled synthetic dataset and not asserted for live broker data.
 
 *(Targets are working numbers — revise once early benchmarking gives us real baselines. Having a number, even approximate, is what matters for review purposes.)*
 
@@ -37,7 +37,7 @@ Isolation Forest detects anomalies by measuring how easily a data point can be i
 **Reference:** Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008). *Isolation Forest*. Proceedings of the 8th IEEE International Conference on Data Mining (ICDM'08), 413–422. https://doi.org/10.1109/ICDM.2008.17
 (Extended journal version: Liu, Ting, & Zhou (2012). *Isolation-Based Anomaly Detection*. ACM Transactions on Knowledge Discovery from Data, 6(1), 1–39.)
 
-**Measured status:** in the seed-42 run, standalone Forest event recall was 3.5% with 5.2% FPR; it missed API abuse and automated trading. The current API includes its signal in a maximum-score ensemble. These metrics inform whether that signal improves the user-facing risk assessment; they do not define project completion. See `docs/EVALUATION_BASELINE.md`.
+**Measured status:** in the current seed-42 run, standalone Forest event recall was 3.5% with 4.4% FPR; it missed API abuse and automated trading. The current API includes its signal in a maximum-score ensemble. These metrics inform whether that signal improves the user-facing risk assessment; they do not define project completion. See `docs/EVALUATION_BASELINE.md`.
 
 ---
 
@@ -82,16 +82,16 @@ Glasser, J., & Lindauer, B. (2013). *Bridging the Gap: A Pragmatic Approach to G
 
 | Layer | Choice | Why |
 |---|---|---|
-| API framework | FastAPI | Pydantic request validation; currently exposes `/health` and `/score` |
+| API framework | FastAPI | Pydantic request validation; exposes `/health`, `/score`, `/events`, and `/demo/replay` |
 | Dependency management | pip + requirements.txt | Simplest for a 3-person team; no extra tooling to install/sync |
-| Event storage | In-memory process state; database not selected | Suitable for the current single-process feasibility prototype; persistence remains open |
+| Event storage | Bounded local SQLite history for compact score summaries | Keeps recent analyst history across restarts without a new dependency; rolling feature state is still process-local and production-secured storage remains future work |
 | Caching | None | No measured need at current prototype scale |
 | Detection — baseline | Rolling z-score per account | Interpretable statistical baseline; see §4 |
 | Detection — ML | Isolation Forest comparison plus max-score ensemble | Forest standalone performance is weak in current benchmark; see §3 |
 | Frontend | Local analyst dashboard served by FastAPI | HTML/CSS/JavaScript avoids a separate build toolchain for the demo; this is implemented, while a polished production console remains future work |
 | Containerization | Docker files present; build unverified | Intended reproducibility; local engine was unavailable at last build attempt |
 
-**Engineering principle:** keep the system a modular monolith while completing the usable product. PostgreSQL, Redis, Kafka, and WebSockets remain optional until persistence, scale, or push-update requirements justify them. The UI itself is not optional; it is a core missing deliverable.
+**Engineering principle:** keep the system a modular monolith while completing the usable product. PostgreSQL, Redis, Kafka, and WebSockets remain optional until scale or push-update requirements justify them. The local dashboard is implemented for synthetic replay and normalized-event review; usability, persistence of behavioral state, and provider-specific integration remain unfinished product work.
 
 ---
 

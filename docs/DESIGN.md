@@ -37,8 +37,8 @@ architecture and data-flow view, cross-referenced back to those decisions.
                                              ▼
                     ┌──────────────────────────────────────────────┐
                     │  API  (threat_detection.api, FastAPI)          │
-                    │  /health, /score                               │
-                    │  API responses / alert updates                │
+                    │  /health, /score, /events, /demo/replay        │
+                    │  compact score history → local SQLite          │
                     └───────────────────────┬────────────────────────┘
                                              │ JSON
                                              ▼
@@ -70,6 +70,12 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
    `{risk_score, explanation, attack_type_guess, layer_scores}` as JSON. At module import,
    the demo forest is fit on one normal-only synthetic stream and calibrated on a separate
    normal-only stream. Both use fixed seeds; the fitted model is process-local.
+5. Each scored event's compact analyst summary is saved to local SQLite (default
+   `data/events.sqlite3`, configurable with `THREAT_DETECTION_DB_PATH`). The `/events`
+   endpoint reads the newest 500 summaries. Raw event payloads and evaluation labels are
+   not stored. Event history survives process restarts, while rolling per-account feature
+   state and the fitted demo model do not. Synthetic replay uses its own feature extractor
+   so a demo run does not reset or contaminate `/score`'s rolling account state.
 
 ## 3. What's implemented, abstract, and still required
 
@@ -77,16 +83,20 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 - The `EventSource`, `FeatureExtractor`, and `AnomalyDetector` base classes are abstract contracts, not runnable implementations.
 - Concrete implementations exist for the synthetic source, rolling statistics extractor, z-score detector, Isolation Forest detector, and max-score ensemble.
 - Autoencoder comparison method (`DECISIONS.md` §5)
-- PostgreSQL/TimescaleDB persistence, Redis caching (currently in-memory only, sufficient for
-  a single-process prototype; DB introduced when persistence/multi-process state is needed)
-- Local browser dashboard showing scored events and explanations (implemented for synthetic demo)
+- Bounded local SQLite history of compact score summaries (implemented); production-secured
+  storage, cross-process coordination, and persistence of rolling feature/model state remain
+  future work
+- Local browser dashboard for synthetic replay and normalized-event scoring, with explanations
+  and recent history (implemented for local demo)
 - Push-based WebSocket/SSE updates (optional; polling is sufficient for the first working UI)
 - Graph-based fraud-ring detection, adversarial evasion testing (`DECISIONS.md` §9)
 
-The backend and first dashboard flow demonstrate feasibility, not broker deployment. There is
-no live broker data source, persistence, or production deployment. The broker must provide an
-authorized adapter that maps its telemetry to the normalized event contract. See `PROGRESS.md`
-for remaining work and `EVALUATION_BASELINE.md` for detector measurements and caveats.
+The backend and dashboard demonstrate feasibility, not broker deployment. There is no live
+broker data source or production deployment; only the compact score history persists locally.
+The broker must provide an authorized adapter that maps its telemetry to the normalized event
+contract. The local SQLite database has no authentication or encryption and must not be
+exposed as production broker storage. See `PROGRESS.md` for remaining work and
+`EVALUATION_BASELINE.md` for detector measurements and caveats.
 
 ## 4. Component selection summary
 

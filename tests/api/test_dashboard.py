@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from threat_detection.api import main
 from threat_detection.api.main import app
 
 
@@ -62,3 +63,12 @@ def test_demo_replay_is_repeatable_for_the_same_seed():
 
     assert second_replay == first_replay
     assert second_events == first_events
+
+
+def test_demo_replay_does_not_replace_live_feature_state():
+    live_feature_extractor = main._feature_extractor
+
+    response = client.post("/demo/replay?seed=42")
+
+    assert response.status_code == 200
+    assert main._feature_extractor is live_feature_extractor

@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from threat_detection.api import main
+from threat_detection.api.event_store import SQLiteEventStore
 from threat_detection.api.main import app
 
 client = TestClient(app)
@@ -42,6 +44,27 @@ def test_scored_normalized_event_appears_in_analyst_history():
     assert scored_event["risk_score"] == response.json()["risk_score"]
     assert scored_event["explanation"] == response.json()["explanation"]
     assert {"is_attack", "attack_type"}.isdisjoint(scored_event)
+
+
+def test_api_event_history_is_available_after_store_reopen(tmp_path, monkeypatch):
+    database_path = tmp_path / "api-history.sqlite3"
+    store = SQLiteEventStore(database_path)
+    monkeypatch.setattr(main, "_event_store", store)
+    event = _order_event(event_id="evt-restart-test", account_id="ACC_RESTART_TEST")
+
+    score_response = client.post("/score", json=event)
+    assert score_response.status_code == 200
+    store.close()
+
+    reopened_store = SQLiteEventStore(database_path)
+    monkeypatch.setattr(main, "_event_store", reopened_store)
+    try:
+        history = client.get("/events?limit=10").json()["events"]
+        assert len(history) == 1
+        assert history[0]["event_id"] == event["event_id"]
+        assert history[0]["risk_score"] == score_response.json()["risk_score"]
+    finally:
+        reopened_store.close()
 
 
 def test_first_event_for_a_new_account_is_low_risk():

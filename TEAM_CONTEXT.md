@@ -38,8 +38,9 @@ completed survey.
 - **Modular monolith**, not microservices — no premature infrastructure; each layer
   (ingestion/features/detection/api) is a separate Python package behind an abstract
   interface so it can be swapped or extracted later without a rewrite.
-- **A local analyst dashboard is implemented for the synthetic demo.** Broker-specific
-  integration and persistent event storage are not implemented.
+- **A local analyst dashboard is implemented for synthetic replay and normalized-event
+  scoring.** Bounded SQLite score-summary history persists locally. Provider-specific
+  broker integration and production-secured storage are not implemented.
 
 ## Where the numbers come from — every threshold is either cited or flagged as ours
 
@@ -60,10 +61,10 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | Canonical event model and broker mapping | Reusable model and flat-field adapter implemented; no broker-specific config or connection | `src/threat_detection/ingestion/schema.py`, `src/threat_detection/ingestion/base.py` |
 | Rolling features (quantity/value, device/login context, per-client API rate, matched cancel sequence, market-time context) | Implemented | `src/threat_detection/features/rolling_stats.py` |
 | Explainable z-score detector (risk score and attack-pattern guess) | Implemented | `src/threat_detection/detection/zscore.py` |
-| FastAPI `/health`, `/score`, event history, synthetic replay, dashboard JSON event submission | Implemented for local demo; no provider-specific broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/static/` |
+| FastAPI `/health`, `/score`, SQLite event history, synthetic replay, dashboard JSON event submission | Implemented for local demo; no provider-specific broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/event_store.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **88 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **93 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
@@ -87,9 +88,11 @@ demo does not connect to a broker.
 4. **Analyst dashboard workflow.** The local UI replays synthetic events and accepts a
    normalized event for scoring; review it in a browser and improve the detail and
    accessibility based on use.
-5. **Persistence and broker adapter.** The normalized contract and abstract mapping
-   interface exist, but no broker-specific mapping is implemented. Choose a broker
-   schema, then determine restart/history behavior and add persistence.
+5. **Persistence and broker adapter.** Bounded SQLite event-summary history exists,
+   but rolling feature state is not restored after restart, and storage has no
+   production access controls. The normalized contract and configurable field mapper
+   exist; no broker-specific mapping is implemented. Choose a broker schema and
+   build/test the authorized provider mapping.
 
 ## Repo map
 
@@ -120,7 +123,7 @@ are supporting validation, not the project's purpose. The historical materials i
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 88 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 93 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

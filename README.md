@@ -25,7 +25,8 @@ production deployment; its evaluation uses synthetic planted patterns.
 - `evaluation/`: ground-truth-safe replay, clean-stream model fitting and
   calibration, scenario and event recall, false-positive rate, per-attack-type
   recall, and per-event processing latency.
-- `api/`: FastAPI `/health` and `/score` endpoints.
+- `api/`: FastAPI `/health`, `/score`, `/events`, and synthetic replay endpoints,
+  plus the local analyst dashboard and bounded SQLite event-summary history.
 
 The ingestion `base.py` defines `EventSource` and `BrokerEventAdapter` contracts;
 the feature and detection `base.py` files define `FeatureExtractor` and
@@ -35,10 +36,14 @@ memory for that process, and Forest scoring is held during account cold start.
 The local analyst dashboard connects to the API, replays synthetic events,
 accepts one normalized JSON event for scoring, and shows scores, reasons, and
 recent history. A broker-specific adapter must map source fields to the
-canonical event before submission; the UI does not connect to a broker. State
-is process-local and not persisted. Durable
-storage, Kafka, graph-based fraud rings, and adversarial evasion tests remain
-future work.
+canonical event before submission; the UI does not connect to a broker. Recent
+score summaries persist in local SQLite at `data/events.sqlite3` by default;
+set `THREAT_DETECTION_DB_PATH` to choose another file. Rolling feature state
+and the fitted demo model remain process-local, and SQLite history has no
+authentication or encryption, so this is for local demonstration only. A
+production broker deployment needs secured storage, access control, retention
+policy, and durable baseline/model lifecycle. Kafka, graph-based fraud rings,
+and adversarial evasion tests remain future work.
 
 ## Setup
 
@@ -82,8 +87,12 @@ The analyst dashboard is at `http://localhost:8000/`.
 
 ```powershell
 docker build -t threat-detection .
-docker run -p 8000:8000 threat-detection
+docker run -p 8000:8000 -v threat-detection-data:/app/data threat-detection
 ```
+
+The named Docker volume retains local SQLite score history across container
+recreation. It does not persist rolling feature state or provide production
+data protection.
 
 ## Team
 

@@ -9,9 +9,34 @@ const elements = {
   replayButton: document.querySelector('#replay-button'),
   refreshButton: document.querySelector('#refresh-button'),
   notice: document.querySelector('#notice'),
+  scoreForm: document.querySelector('#score-form'),
+  eventPayload: document.querySelector('#event-payload'),
+  scoreEventButton: document.querySelector('#score-event-button'),
+  resetEventButton: document.querySelector('#reset-event-button'),
 };
 
 let scoredEvents = [];
+
+function exampleEvent() {
+  return {
+    event_id: `manual-${Date.now()}`,
+    account_id: 'DEMO-ACCOUNT-1',
+    timestamp: new Date().toISOString(),
+    event_type: 'ORDER',
+    device_id: 'demo-device-1',
+    ip_address: '192.0.2.10',
+    session_id: 'demo-session-1',
+    symbol: 'TCS',
+    order_type: 'buy',
+    quantity: 10,
+    price: 100,
+    order_value: 1000,
+  };
+}
+
+function loadExampleEvent() {
+  elements.eventPayload.value = JSON.stringify(exampleEvent(), null, 2);
+}
 
 function makeCell(className, text) {
   const cell = document.createElement('td');
@@ -169,5 +194,45 @@ elements.replayButton.addEventListener('click', async () => {
 
 elements.refreshButton.addEventListener('click', () => loadEvents());
 elements.filter.addEventListener('change', render);
+elements.resetEventButton.addEventListener('click', loadExampleEvent);
+elements.scoreForm.addEventListener('submit', async (submitEvent) => {
+  submitEvent.preventDefault();
+  let eventPayload;
+  try {
+    eventPayload = JSON.parse(elements.eventPayload.value);
+    if (!eventPayload || Array.isArray(eventPayload) || typeof eventPayload !== 'object') {
+      throw new Error('Event JSON must be one object.');
+    }
+  } catch (error) {
+    showNotice(error.message || 'Enter valid event JSON.', true);
+    return;
+  }
+
+  elements.scoreEventButton.disabled = true;
+  elements.scoreEventButton.textContent = 'Scoring…';
+  elements.notice.hidden = true;
+  try {
+    const response = await fetch('/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(eventPayload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      const details = Array.isArray(result.detail)
+        ? result.detail.map((item) => item.msg || JSON.stringify(item)).join('; ')
+        : result.detail || `Scoring failed (${response.status}).`;
+      throw new Error(details);
+    }
+    await loadEvents({ quiet: true });
+    showNotice(`Scored ${eventPayload.event_id || 'event'}: risk ${Math.round(result.risk_score)}. ${result.explanation}`);
+  } catch (error) {
+    showNotice(error.message || 'The event could not be scored.', true);
+  } finally {
+    elements.scoreEventButton.disabled = false;
+    elements.scoreEventButton.textContent = 'Score event';
+  }
+});
+loadExampleEvent();
 loadEvents();
 window.setInterval(() => loadEvents({ quiet: true }), 10000);

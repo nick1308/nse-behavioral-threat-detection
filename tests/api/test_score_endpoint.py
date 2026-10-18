@@ -31,6 +31,19 @@ def test_score_endpoint_returns_expected_shape():
     assert body["risk_score"] == max(body["layer_scores"].values())
 
 
+def test_scored_normalized_event_appears_in_analyst_history():
+    event = _order_event(event_id="evt-dashboard-score", account_id="ACC_HISTORY_TEST")
+
+    response = client.post("/score", json=event)
+
+    assert response.status_code == 200
+    history = client.get("/events?limit=500").json()["events"]
+    scored_event = next(item for item in history if item["event_id"] == event["event_id"])
+    assert scored_event["risk_score"] == response.json()["risk_score"]
+    assert scored_event["explanation"] == response.json()["explanation"]
+    assert {"is_attack", "attack_type"}.isdisjoint(scored_event)
+
+
 def test_first_event_for_a_new_account_is_low_risk():
     # A brand-new account's very first event has no history to compare
     # against, so the statistical layer shouldn't flag it as high-risk

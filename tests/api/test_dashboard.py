@@ -13,10 +13,13 @@ def test_dashboard_and_assets_are_served():
 
     assert page.status_code == 200
     assert "Run demo stream" in page.text
+    assert "Score one event" in page.text
+    assert "does not connect to a broker" in page.text
     assert stylesheet.status_code == 200
     assert "stat-grid" in stylesheet.text
     assert script.status_code == 200
     assert "demo/replay" in script.text
+    assert "fetch('/score'" in script.text
 
 
 def test_demo_replay_scores_events_and_keeps_ground_truth_out_of_ui_api():

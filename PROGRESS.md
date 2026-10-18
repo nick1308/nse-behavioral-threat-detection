@@ -13,9 +13,9 @@ stronger validation remain.
 | Workstream | Progress | Current state |
 |---|---:|---|
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
-| Analyst UI | `████████░░` 80% | Dashboard, risk reasons, filters, event history, and seeded replay work; visual/user review remains |
-| End-to-end product workflow | `███████░░░` 70% | UI calls FastAPI replay/history; durable storage and broker adapter are absent |
-| Reliability and validation | `██████░░░░` 60% | 87 tests pass; curated attack variations and one constructed benign MFA case are checked, independent attack data and deployment checks remain |
+| Analyst UI | `████████░░` 80% | Dashboard supports seeded replay and one normalized event submission, with risk reasons, filters, and history; visual/user review remains |
+| End-to-end product workflow | `███████░░░` 70% | UI submits normalized events to FastAPI and shows recorded results; durable storage and provider-specific broker integration are absent |
+| Reliability and validation | `██████░░░░` 60% | 88 tests pass; curated attack variations and one constructed benign MFA case are checked, independent attack data and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -34,14 +34,16 @@ are not general validation.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  87 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  88 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist. Docker CLI is present, but the Docker engine is
   unavailable in this environment, so an image build remains unverified.
 - A local analyst dashboard is served by FastAPI. It replays a fixed-seed,
   fixed-start-time synthetic stream, shows recent event risk, explanations,
-  detector component scores, suspected pattern guesses, and risk filters.
-  State/history are in memory only.
+  detector component scores, suspected pattern guesses, and risk filters. It
+  also accepts one canonical normalized event as JSON and displays the saved
+  score and explanation. Broker source records still need a deployment-specific
+  adapter before submission. State/history are in memory only.
 - Live local smoke check: health, dashboard, CSS, and JavaScript returned 200;
   two seed-42 runs each scored 283 synthetic events, produced 87 alerts, and
   returned identical event histories with no ground-truth fields exposed.

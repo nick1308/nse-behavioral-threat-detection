@@ -32,9 +32,11 @@ the feature and detection `base.py` files define `FeatureExtractor` and
 `AnomalyDetector`. `NormalizedEvent` is the shared input model. At API import, the demo Forest is fit and calibrated
 on separate, reproducible normal-only synthetic streams. The model remains in
 memory for that process, and Forest scoring is held during account cold start.
-The local analyst dashboard connects to the API, replays synthetic events, and
-shows scored events with reasons and recent history. It is a demonstration UI,
-not a broker connection; state is process-local and not persisted. Durable
+The local analyst dashboard connects to the API, replays synthetic events,
+accepts one normalized JSON event for scoring, and shows scores, reasons, and
+recent history. A broker-specific adapter must map source fields to the
+canonical event before submission; the UI does not connect to a broker. State
+is process-local and not persisted. Durable
 storage, Kafka, graph-based fraud rings, and adversarial evasion tests remain
 future work.
 

@@ -46,6 +46,25 @@
           <article class="stat-card"><div class="stat-label">Accounts observed <span class="stat-symbol">◎</span></div><div id="account-count" class="stat-value">0</div><div class="stat-caption">Distinct accounts in recent activity</div></article>
         </section>
 
+        <section class="panel submit-panel" aria-labelledby="submit-event-title">
+          <div class="panel-heading">
+            <div>
+              <div class="eyebrow">NORMALIZED EVENT INPUT</div>
+              <h2 id="submit-event-title">Score one event</h2>
+              <p>Paste one event in the canonical schema to run it through the same scoring pipeline.</p>
+            </div>
+          </div>
+          <form id="score-form" class="score-form">
+            <label for="event-payload">Event JSON</label>
+            <textarea id="event-payload" name="event" rows="9" spellcheck="false" required></textarea>
+            <p class="form-help">A broker-specific adapter must map source fields into this schema first. This form submits to the local demo API; it does not connect to a broker. Synthetic ground-truth fields are rejected.</p>
+            <div class="form-actions">
+              <button id="score-event-button" class="primary-button" type="submit">Score event</button>
+              <button id="reset-event-button" class="secondary-button" type="button">Load example</button>
+            </div>
+          </form>
+        </section>
+
         <section id="events" class="panel" aria-labelledby="alerts-title">
           <div class="panel-heading">
             <div><div class="eyebrow">LIVE EVENT REVIEW</div><h2 id="alerts-title">Recent activity</h2><p>Scores are behavioral risk indicators, not probabilities of fraud.</p></div>

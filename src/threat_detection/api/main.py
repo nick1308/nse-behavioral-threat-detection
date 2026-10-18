@@ -15,13 +15,17 @@ would have no history to compare against and every event would look
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from threat_detection.detection.ensemble import ZScoreIsolationForestEnsemble
 from threat_detection.detection.zscore import ZScoreAnomalyDetector
+from threat_detection.evaluation.harness import fit_isolation_forest
 from threat_detection.features.rolling_stats import RollingStatsFeatureExtractor
+from threat_detection.ingestion.synthetic import SyntheticEventSource
 
 app = FastAPI(title="NSE Behavioral Threat Detection", version="0.1.0")
 
@@ -30,14 +34,38 @@ app = FastAPI(title="NSE Behavioral Threat Detection", version="0.1.0")
 # persistence is future work), so in-memory state here is intentional,
 # not a shortcut we forgot to fix.
 _feature_extractor = RollingStatsFeatureExtractor()
-_detector = ZScoreAnomalyDetector()
+
+
+def _build_detector() -> ZScoreIsolationForestEnsemble:
+    """Build the demo model from reproducible normal-only synthetic history."""
+    start_time = datetime(2026, 9, 18, tzinfo=timezone.utc)
+    forest, _ = fit_isolation_forest(
+        SyntheticEventSource(
+            num_accounts=20,
+            num_attack_accounts=0,
+            seed=7,
+            start_time=start_time,
+        ),
+        calibration_event_source=SyntheticEventSource(
+            num_accounts=20,
+            num_attack_accounts=0,
+            seed=8,
+            start_time=start_time,
+        ),
+        target_false_positive_rate=0.05,
+    )
+    return ZScoreIsolationForestEnsemble(ZScoreAnomalyDetector(), forest)
+
+
+_detector = _build_detector()
 
 
 class EventIn(BaseModel):
     """Request body for POST /score — mirrors EVENT_SCHEMA.md's common
-    fields plus the handful of type-specific fields our current features
-    actually use (order_value, time_since_order_ms). Ground-truth fields
-    (is_attack, attack_type) are deliberately NOT accepted here: this
+    fields plus the type-specific fields used by the current detectors
+    (quantity, order_value, client_id, original_order_id, and
+    time_since_order_ms). Ground-truth fields (is_attack, attack_type) are
+    deliberately NOT accepted here: this
     endpoint scores events the way a real deployment would receive them,
     without a "cheat" label attached (see synthetic.py's module docstring
     for why the detection pipeline must never see ground truth).
@@ -50,8 +78,13 @@ class EventIn(BaseModel):
     device_id: str
     ip_address: str
     session_id: str
+    success: Optional[bool] = None
+    quantity: Optional[int] = None
+    price: Optional[float] = None
     order_value: Optional[float] = None
     time_since_order_ms: Optional[float] = None
+    client_id: Optional[str] = None
+    original_order_id: Optional[str] = None
 
     model_config = {
         "json_schema_extra": {
@@ -68,11 +101,19 @@ class EventIn(BaseModel):
         }
     }
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_ground_truth(cls, value: Any) -> Any:
+        if isinstance(value, dict) and {"is_attack", "attack_type"}.intersection(value):
+            raise ValueError("ground-truth fields are not accepted by the scoring API")
+        return value
+
 
 class ScoreOut(BaseModel):
     risk_score: float = Field(..., description="0-100 explainable risk score")
     explanation: str
     attack_type_guess: Optional[str] = None
+    layer_scores: dict[str, float]
 
 
 @app.get("/health")

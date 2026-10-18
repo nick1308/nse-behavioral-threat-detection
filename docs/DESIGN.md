@@ -30,8 +30,8 @@ architecture and data-flow view, cross-referenced back to those decisions.
                     ┌──────────────────────────────────────────────┐
                     │  DETECTION  (threat_detection.detection)       │
                     │  Layer 1: rolling z-score (interpretable floor)│
-                    │  Layer 2: Isolation Forest (future scope beyond│
-                    │           Review 2 — see DECISIONS.md §3)      │
+                    │  Layer 2: Isolation Forest (normal-only fit)  │
+                    │           plus max-score combination          │
                     └───────────────────────┬────────────────────────┘
                                              │ risk score 0-100 + explanation
                                              ▼
@@ -60,14 +60,18 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 2. `FeatureExtractor` maintains rolling per-account state (count, mean, variance via a
    streaming/Welford-style update — no need to store full history) and emits a feature vector
    per event.
-3. `AnomalyDetector` (statistical layer only, for Review 2) computes a z-score per feature,
-   combines into a 0–100 risk score, and attaches a plain-English explanation string.
-4. `POST /score` accepts an event (or triggers the generator for a demo event), runs it through
-   steps 2–3, returns `{risk_score, explanation, attack_type_guess}` as JSON.
+3. The z-score detector computes interpretable statistical alerts. A fitted Isolation Forest
+   scores the same feature vector. The API uses the maximum of their 0–100 alert scores and
+   returns both component scores; the attack-type guess remains the z-score layer's guess.
+   Forest scoring is suppressed until the account has prior event history, avoiding cold-start
+   alerts before a per-account baseline can exist.
+4. `POST /score` accepts one event, rejects `is_attack` and `attack_type`, then returns
+   `{risk_score, explanation, attack_type_guess, layer_scores}` as JSON. At module import,
+   the demo forest is fit on one normal-only synthetic stream and calibrated on a separate
+   normal-only stream. Both use fixed seeds; the fitted model is process-local.
 
 ## 3. What's explicitly deferred past Review 2
 
-- Isolation Forest layer (interface exists, concrete implementation is future work — `DECISIONS.md` §3, §9)
 - Autoencoder comparison method (`DECISIONS.md` §5)
 - PostgreSQL/TimescaleDB persistence, Redis caching (currently in-memory only, sufficient for
   a single-process prototype; DB introduced when persistence/multi-process state is needed)
@@ -76,7 +80,7 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 
 This scoping is deliberate: Review 2 asks for ~20% completion, requirement analysis, design,
 component selection, and a feasibility-demonstrating prototype — not a finished product. The
-vertical slice above (generator → features → statistical detection → API) is the smallest
+vertical slice above (generator → features → two detector layers → API) is the smallest
 complete path that actually proves the pipeline concept works, rather than a wider set of
 disconnected stubs.
 
@@ -88,6 +92,6 @@ See `DECISIONS.md` §7 for the full table and reasoning. Summary for Review 2 ta
 |---|---|---|
 | API framework | FastAPI | Async, Pydantic validation, native WebSocket support for later dashboard |
 | Detection (statistical) | Rolling z-score | Interpretable, zero training data, cheap in real time |
-| Detection (ML, future) | Isolation Forest | No labeled fraud data needed; linear time; well-established (Liu et al. 2008) |
+| Detection (ML comparison) | Isolation Forest | Fit on normal-only data; benchmarked with z-score (Liu et al. 2008) |
 | Containerization | Docker | Reproducible for grading/demo |
 | Architecture style | Modular monolith | No premature microservices; extract only where load-tested |

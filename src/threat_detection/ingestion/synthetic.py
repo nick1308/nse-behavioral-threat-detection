@@ -27,6 +27,7 @@ from threat_detection.ingestion.base import EventSource
 _SYMBOLS = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "ITC", "LT"]
 
 _ATTACK_TYPES = ("account_takeover", "api_abuse", "automated_trading")
+_INDIA_TIMEZONE = timezone(timedelta(hours=5, minutes=30), name="IST")
 
 
 def _seeded_uuid(rng: random.Random) -> str:
@@ -81,13 +82,15 @@ class _AccountProfile:
     active_hour_start: int  # this account normally trades within this local-hour window
     active_hour_end: int
     typical_order_qty: int
+    api_client_id: str
     typical_symbols: list[str] = field(default_factory=list)
 
 
 class SyntheticEventSource(EventSource):
-    """Generates a bounded, deterministic-if-seeded stream of synthetic
-    trading events for a fixed population of accounts, planting a small
-    number of labeled attacks among otherwise-normal behavior.
+    """Generates a bounded stream of synthetic trading events for a fixed
+    population of accounts, planting a small number of labeled attacks among
+    otherwise-normal behavior. Output is reproducible when both ``seed`` and
+    ``start_time`` are fixed; the default start time follows the current clock.
     """
 
     def __init__(
@@ -137,15 +140,16 @@ class SyntheticEventSource(EventSource):
         profiles = []
         for i in range(self._num_accounts):
             account_id = f"ACC{i:04d}"
-            active_start = self._rng.randint(6, 12)
+            active_start = self._rng.randint(9, 10)
             profiles.append(
                 _AccountProfile(
                     account_id=account_id,
                     home_device_id=f"device-{self._rng.getrandbits(32):08x}",
                     home_ip=f"10.{self._rng.randint(0,255)}.{self._rng.randint(0,255)}.{self._rng.randint(1,254)}",
                     active_hour_start=active_start,
-                    active_hour_end=min(active_start + self._rng.randint(4, 8), 23),
+                    active_hour_end=min(active_start + self._rng.randint(2, 4), 15),
                     typical_order_qty=self._rng.choice([10, 25, 50, 100, 200]),
+                    api_client_id=f"client-{self._rng.getrandbits(32):08x}",
                     typical_symbols=self._rng.sample(_SYMBOLS, k=self._rng.randint(1, 3)),
                 )
             )
@@ -165,15 +169,26 @@ class SyntheticEventSource(EventSource):
     def _parse_ts(event: dict[str, Any]) -> datetime:
         return datetime.fromisoformat(event["timestamp"])
 
+    def _local_start_time(self) -> datetime:
+        """Interpret generated trading activity in the Indian market timezone."""
+        start_time = self._start_time
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        return start_time.astimezone(_INDIA_TIMEZONE)
+
     # -- normal behavior generation ---------------------------------------------
 
     def _generate_normal_history(self, profile: _AccountProfile) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
         session_id = _seeded_uuid(self._rng)
-        current = self._start_time + timedelta(
-            days=self._rng.randint(0, 25),
-            hours=profile.active_hour_start,
-            minutes=self._rng.randint(0, 59),
+        normal_day = self._local_start_time() + timedelta(
+            days=self._rng.randint(0, 25)
+        )
+        current = normal_day.replace(
+            hour=profile.active_hour_start,
+            minute=self._rng.randint(0, 59),
+            second=0,
+            microsecond=0,
         )
 
         events.append(
@@ -190,8 +205,29 @@ class SyntheticEventSource(EventSource):
             )
         )
 
+        # Seed a per-client normal request-rate baseline well before any
+        # planted attack. Widely spaced requests model ordinary quote/API use
+        # and give the online detector multiple minute-bucket samples.
+        for minutes_after_login in (15, 45, 75):
+            request_time = current + timedelta(minutes=minutes_after_login)
+            events.append(
+                _new_event(
+                    self._rng,
+                    profile.account_id,
+                    "API_REQUEST",
+                    request_time,
+                    profile.home_device_id,
+                    profile.home_ip,
+                    session_id,
+                    endpoint="/quotes",
+                    method="GET",
+                    status_code=200,
+                    client_id=profile.api_client_id,
+                )
+            )
+
         for _ in range(self._events_per_normal_account):
-            current += timedelta(minutes=self._rng.uniform(1, 15))
+            current += timedelta(minutes=self._rng.uniform(1, 5))
             symbol = self._rng.choice(profile.typical_symbols)
 
             if self._rng.random() < 0.6:
@@ -255,7 +291,7 @@ class SyntheticEventSource(EventSource):
         max, all within a short time span.
         """
         events: list[dict[str, Any]] = []
-        attack_day = self._start_time + timedelta(days=self._rng.randint(26, 29))
+        attack_day = self._local_start_time() + timedelta(days=self._rng.randint(26, 29))
         # Deliberately outside [active_hour_start, active_hour_end] and on an
         # unseen device/IP — that combination is the anomaly, not any one field.
         off_hour = (profile.active_hour_end + 6) % 24
@@ -325,10 +361,10 @@ class SyntheticEventSource(EventSource):
         rolling baseline within a short window.
         """
         events: list[dict[str, Any]] = []
-        attack_day = self._start_time + timedelta(days=self._rng.randint(26, 29))
+        attack_day = self._local_start_time() + timedelta(days=self._rng.randint(26, 29))
         t = attack_day.replace(hour=profile.active_hour_start, minute=0)
         session_id = _seeded_uuid(self._rng)
-        client_id = f"client-{self._rng.getrandbits(32):08x}"
+        client_id = profile.api_client_id
 
         # Normal API_REQUEST baseline is roughly a handful per session; abuse
         # here is ~50 requests in under a minute — a clear rate spike.
@@ -359,7 +395,7 @@ class SyntheticEventSource(EventSource):
         a script's doesn't).
         """
         events: list[dict[str, Any]] = []
-        attack_day = self._start_time + timedelta(days=self._rng.randint(26, 29))
+        attack_day = self._local_start_time() + timedelta(days=self._rng.randint(26, 29))
         t = attack_day.replace(hour=profile.active_hour_start, minute=0)
         session_id = _seeded_uuid(self._rng)
 

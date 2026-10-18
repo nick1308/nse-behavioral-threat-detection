@@ -14,10 +14,14 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
 from typing import Any
 
 from threat_detection.features.base import FeatureExtractor
+
+_INDIA_TIMEZONE = timezone(timedelta(hours=5, minutes=30), name="IST")
+_REGULAR_SESSION_OPEN = time(9, 15)
+_REGULAR_SESSION_CLOSE = time(15, 30)
 
 
 @dataclass
@@ -77,37 +81,40 @@ class _AccountState:
     """
 
     order_size: _WelfordStats = field(default_factory=_WelfordStats)
+    order_value: _WelfordStats = field(default_factory=_WelfordStats)
+    event_count: int = 0
     seen_devices: set[str] = field(default_factory=set)
     seen_ips: set[str] = field(default_factory=set)
     login_hours_seen: set[int] = field(default_factory=set)
-    # Timestamps of recent API_REQUEST events, used to compute a rolling
-    # request rate (DECISIONS.md §8: "request rate N x above the account's
-    # rolling baseline"). Bounded so memory doesn't grow unboundedly over a
-    # long-running stream.
-    recent_api_request_times: deque[datetime] = field(default_factory=lambda: deque(maxlen=200))
-    api_request_rate_baseline: _WelfordStats = field(default_factory=_WelfordStats)
-    # Minute-bucket (epoch seconds // 60) the baseline was last updated for.
-    # The baseline must only absorb one rate sample per minute of real time,
-    # not one sample per request — otherwise a sustained burst of many
-    # requests within a single minute updates its own baseline dozens of
-    # times as it happens, and ends up chasing its own tail instead of
-    # staying anchored to pre-burst normal behavior (caught by
-    # test_api_request_rate_zscore_flags_a_burst).
-    api_request_rate_last_bucket: int | None = None
-    # Recent CANCEL_ORDER -> ORDER delays, used to catch the automated-trading
-    # signal: a human's cancel timing varies, a script's doesn't
-    # (DECISIONS.md §8).
+    observed_login_hours: set[int] = field(default_factory=set)
+    recent_takeover_login: tuple[str, datetime] | None = None
+    # Timing values from all cancel events remain available for backward
+    # compatibility and analysis; the detector uses only delays tied to a
+    # preceding order from the same account.
     recent_cancel_delays_ms: deque[float] = field(default_factory=lambda: deque(maxlen=20))
+    recent_order_timestamps: dict[str, datetime] = field(default_factory=dict)
+    matched_cancel_delays_ms: deque[float] = field(default_factory=lambda: deque(maxlen=20))
+    matched_cancel_timestamps: deque[datetime] = field(default_factory=lambda: deque(maxlen=20))
+
+
+@dataclass
+class _APIClientState:
+    """Rolling request-rate baseline for one account/API-client pair."""
+
+    recent_request_times: deque[datetime] = field(default_factory=lambda: deque(maxlen=200))
+    rate_baseline: _WelfordStats = field(default_factory=_WelfordStats)
+    last_baseline_bucket: int | None = None
 
 
 class RollingStatsFeatureExtractor(FeatureExtractor):
     """Concrete FeatureExtractor computing rolling per-account behavioral
-    statistics — the statistical/interpretable layer described in
-    DECISIONS.md §4.
+    statistics, with a separate rolling request baseline per account/API
+    client — the statistical/interpretable layer described in DECISIONS.md §4.
     """
 
     def __init__(self) -> None:
         self._accounts: dict[str, _AccountState] = {}
+        self._api_clients: dict[tuple[str, str], _APIClientState] = {}
 
     def _state_for(self, account_id: str) -> _AccountState:
         if account_id not in self._accounts:
@@ -119,8 +126,53 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         state = self._state_for(account_id)
         event_type = event["event_type"]
         timestamp = datetime.fromisoformat(event["timestamp"])
+        local_timestamp = (
+            timestamp.replace(tzinfo=_INDIA_TIMEZONE)
+            if timestamp.tzinfo is None
+            else timestamp.astimezone(_INDIA_TIMEZONE)
+        )
+        # The project models the NSE normal equity window on weekdays. The
+        # holiday calendar is deliberately not embedded in the feature layer.
+        is_regular_market_hours = (
+            local_timestamp.weekday() < 5
+            and _REGULAR_SESSION_OPEN <= local_timestamp.time().replace(tzinfo=None) < _REGULAR_SESSION_CLOSE
+        )
+        local_hour = local_timestamp.hour
+        while (
+            state.matched_cancel_timestamps
+            and (timestamp - state.matched_cancel_timestamps[0]).total_seconds() > 60
+        ):
+            state.matched_cancel_timestamps.popleft()
+            state.matched_cancel_delays_ms.popleft()
+        successful_login = event_type == "LOGIN" and event.get("success", True)
+        is_unusual_login_hour = (
+            1.0
+            if successful_login
+            and state.observed_login_hours
+            and local_hour not in state.observed_login_hours
+            else 0.0
+        )
+        takeover_context = 0.0
+        if state.recent_takeover_login is not None:
+            login_device, login_timestamp = state.recent_takeover_login
+            seconds_since_login = (timestamp - login_timestamp).total_seconds()
+            if 0 <= seconds_since_login <= 300 and event["device_id"] == login_device:
+                takeover_context = 1.0
+            elif seconds_since_login < 0 or seconds_since_login > 300:
+                state.recent_takeover_login = None
 
         features: dict[str, float] = {
+            "account_has_prior_history": 1.0 if state.event_count > 0 else 0.0,
+            # Event-kind indicators give downstream models context for sparse
+            # trading signals (for example, a cancel-delay statistic is only
+            # meaningful on a cancellation event). These are derived features;
+            # the immutable input event and the extractor interface are unchanged.
+            "event_type_is_login": 1.0 if event_type == "LOGIN" else 0.0,
+            "event_type_is_order": 1.0 if event_type == "ORDER" else 0.0,
+            "event_type_is_cancel_order": 1.0 if event_type == "CANCEL_ORDER" else 0.0,
+            "event_type_is_api_request": 1.0 if event_type == "API_REQUEST" else 0.0,
+            "event_type_is_device_change": 1.0 if event_type == "DEVICE_CHANGE" else 0.0,
+            "event_type_is_logout": 1.0 if event_type == "LOGOUT" else 0.0,
             # 1.0 the very first time this account uses this device/IP, else 0.0 —
             # the account-takeover signal needs "unseen device" as a hard fact,
             # not a magnitude, so this is deliberately binary rather than a
@@ -131,9 +183,13 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             # this local hour-of-day — captures "login outside the account's
             # historical time window" (DECISIONS.md §8) without needing to
             # store every past timestamp.
-            "is_new_active_hour": 0.0 if timestamp.hour in state.login_hours_seen else 1.0,
+            "is_new_active_hour": 0.0 if local_hour in state.login_hours_seen else 1.0,
+            "is_unusual_login_hour": is_unusual_login_hour,
+            "account_takeover_context": takeover_context,
+            "is_regular_market_hours": 1.0 if is_regular_market_hours else 0.0,
             "order_size_zscore": 0.0,
             "api_request_rate_zscore": 0.0,
+            "cancel_sequence_count": float(len(state.matched_cancel_delays_ms)),
             # inf, not 0.0: the detector treats LOW variance as suspicious
             # (DECISIONS.md §8 — near-zero cancel-timing variance implies a
             # script). A default of 0.0 would make every non-CANCEL_ORDER
@@ -142,28 +198,57 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
             # "definitely not applicable", i.e. as far from the alert
             # threshold as possible.
             "cancel_delay_variance_ms": float("inf"),
+            "matched_cancel_delay_variance_ms": self._variance(
+                state.matched_cancel_delays_ms
+            ),
+            "order_value_zscore": 0.0,
         }
 
         if event_type == "ORDER":
             order_value = float(event.get("order_value", 0.0))
-            features["order_size_zscore"] = state.order_size.zscore(order_value)
-            state.order_size.update(order_value)
+            order_size = float(event.get("quantity", order_value))
+            features["order_size_zscore"] = state.order_size.zscore(order_size)
+            state.order_size.update(order_size)
+            if "order_value" in event:
+                features["order_value_zscore"] = state.order_value.zscore(order_value)
+                state.order_value.update(order_value)
+            order_id = str(event.get("event_id", ""))
+            if order_id:
+                state.recent_order_timestamps[order_id] = timestamp
+                if len(state.recent_order_timestamps) > 200:
+                    oldest_order_id = next(iter(state.recent_order_timestamps))
+                    del state.recent_order_timestamps[oldest_order_id]
 
         elif event_type == "API_REQUEST":
-            state.recent_api_request_times.append(timestamp)
-            rate = self._current_request_rate(state, timestamp)
-            features["api_request_rate_zscore"] = state.api_request_rate_baseline.zscore(rate)
+            client_id = str(event.get("client_id") or account_id)
+            client_state = self._api_clients.setdefault(
+                (account_id, client_id), _APIClientState()
+            )
+            client_state.recent_request_times.append(timestamp)
+            rate = self._current_request_rate(client_state, timestamp)
+            features["api_request_rate_zscore"] = client_state.rate_baseline.zscore(rate)
             current_bucket = int(timestamp.timestamp() // 60)
-            if current_bucket != state.api_request_rate_last_bucket:
+            if current_bucket != client_state.last_baseline_bucket:
                 # Only fold the rate into the baseline once per minute of
                 # real time has elapsed, so an in-progress burst can't
                 # retrain the baseline to think the burst is normal.
-                state.api_request_rate_baseline.update(rate)
-                state.api_request_rate_last_bucket = current_bucket
+                client_state.rate_baseline.update(rate)
+                client_state.last_baseline_bucket = current_bucket
 
         elif event_type == "CANCEL_ORDER":
             delay_ms = float(event.get("time_since_order_ms", 0))
             state.recent_cancel_delays_ms.append(delay_ms)
+            original_order_id = str(event.get("original_order_id", ""))
+            order_timestamp = state.recent_order_timestamps.pop(original_order_id, None)
+            if order_timestamp is not None:
+                observed_delay_ms = (timestamp - order_timestamp).total_seconds() * 1000.0
+                if 0 <= observed_delay_ms <= 30_000:
+                    state.matched_cancel_delays_ms.append(observed_delay_ms)
+                    state.matched_cancel_timestamps.append(timestamp)
+            features["cancel_sequence_count"] = float(len(state.matched_cancel_delays_ms))
+            features["matched_cancel_delay_variance_ms"] = self._variance(
+                state.matched_cancel_delays_ms
+            )
             # Low variance across recent cancel delays is itself the anomaly
             # signal (DECISIONS.md §8: "near-zero human-like timing
             # variance") — so this feature reports the *variance*, not a
@@ -176,15 +261,21 @@ class RollingStatsFeatureExtractor(FeatureExtractor):
         # correctly reports it as new (otherwise it would never fire).
         state.seen_devices.add(event["device_id"])
         state.seen_ips.add(event["ip_address"])
-        state.login_hours_seen.add(timestamp.hour)
+        state.login_hours_seen.add(local_hour)
+        if successful_login:
+            if state.observed_login_hours and features["is_new_device"] and is_unusual_login_hour:
+                state.recent_takeover_login = (event["device_id"], timestamp)
+            state.observed_login_hours.add(local_hour)
+
+        state.event_count += 1
 
         return features
 
     @staticmethod
-    def _current_request_rate(state: _AccountState, now: datetime) -> float:
+    def _current_request_rate(state: _APIClientState, now: datetime) -> float:
         """Requests in the trailing 60 seconds, as of `now`."""
         window_start = now.timestamp() - 60.0
-        return sum(1 for t in state.recent_api_request_times if t.timestamp() >= window_start)
+        return sum(1 for t in state.recent_request_times if t.timestamp() >= window_start)
 
     @staticmethod
     def _variance(values: deque[float]) -> float:

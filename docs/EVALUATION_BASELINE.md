@@ -1,0 +1,123 @@
+# Synthetic evaluation baseline
+
+This report records fixed-input measurements for the z-score baseline and an
+Isolation Forest comparison. These are implementation measurements on this
+synthetic generator, not literature results or claims that the project targets
+are achieved on real trading data.
+
+## Reproduce it
+
+From the repository root, run:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m threat_detection.evaluation
+```
+
+The runner fixes seed `42` and start time `2026-09-18T00:00:00+00:00`. With
+the current defaults, it generates 20 accounts, 4 planted attack scenarios,
+and 986 events.
+
+## Metric definitions
+
+- **Attack-scenario recall:** a planted scenario is detected when at least one
+  of its labeled events receives a risk score at or above the threshold. The
+  current generator plants at most one attack type per account, so the
+  evaluation groups scenarios by `(account_id, attack_type)`.
+- **Attack-event recall:** detected labeled attack events divided by all
+  labeled attack events.
+- **False-positive rate:** normal events at or above threshold divided by all
+  normal events.
+- **Per-attack-type recall:** scenario-level recall for each of the three
+  planted attack types.
+- **Latency:** time spent in feature extraction plus detector scoring for one
+  event. It excludes event-source generation, API validation, network time,
+  and response serialization.
+
+Ground-truth fields are copied for evaluation bookkeeping and removed before
+the event reaches the feature extractor. The default alert threshold is `50`.
+
+## Measured result
+
+The Isolation Forest comparison is fit on a separate 900-event synthetic
+stream generated with zero planted attack accounts (seed 7). Its alert cutoff
+is calibrated to a 5% false-positive operating point on a second, separate
+900-event normal-only stream (seed 8). Ground-truth fields are stripped before
+both streams reach feature extraction; no labels select or weight training
+samples. Evaluation uses the same seed 42 and start time as the baseline.
+Event-kind indicators were added to the rolling feature vector so the model can
+interpret sparse order, cancellation, login, and API signals in context.
+
+| Measure | Z-score | Isolation Forest |
+|---|---:|---:|
+| Evaluation events | 986 | 986 |
+| Attack-scenario recall | 100.0% (4 / 4) | 50.0% (2 / 4) |
+| Attack-event recall | 88.4% (76 / 86) | 3.5% (3 / 86) |
+| False-positive rate | 0.0% (0 / 900) | 5.2% (47 / 900) |
+| Account takeover scenario recall | 100.0% (2 / 2) | 100.0% (2 / 2) |
+| API abuse scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
+| Automated trading scenario recall | 100.0% (1 / 1) | 0.0% (0 / 1) |
+| Mean per-event feature-plus-detector latency | 0.008 ms | 10.452 ms |
+| 95th percentile per-event feature-plus-detector latency | 0.016 ms | 12.216 ms |
+
+The combined detector uses the larger of the z-score and Isolation Forest
+scores. It retains the z-score attack-type guess and includes explanations from
+each layer that raised a score. Its fixed-seed result was:
+
+| Measure | Combined layers |
+|---|---:|
+| Attack-scenario recall | 100.0% (4 / 4) |
+| Attack-event recall | 90.7% (78 / 86) |
+| False-positive rate | 3.0% (27 / 900) |
+| Recall by attack type | 100.0% for each type |
+| Mean per-event feature-plus-detector latency | 9.792 ms |
+| 95th percentile per-event feature-plus-detector latency | 11.056 ms |
+
+The forest's validation cutoff targeted 5% FPR; the measured evaluation FPR
+was 5.2%. Its recall is far below the 80% working target and misses API abuse
+and automated trading in this run. This is evidence that the present feature
+representation and model configuration are not ready to replace the
+interpretable detector. Do not present the forest as an effective production
+detector by itself. The combined detector cleared the working recall and FPR
+targets in this fixed-seed run, but this run alone does not establish those
+targets on independent data or unseen attack patterns. The comparison only
+measures this generator's known signatures.
+
+Five fixed evaluation seeds (42–46), with the same fixed fit and calibration
+streams, produced combined results of 100% scenario recall and 90.7% event
+recall on every seed. Per-seed FPR was 3.0%, 2.8%, 4.7%, 2.8%, and 3.7%; mean
+FPR was 3.4%. The standalone Forest had only 3.5% event recall in the fixed
+seed-42 comparison. These seeds alter generator
+profile choices, not planted attack mechanisms; treat this as a stability check
+on one synthetic generator, not independent generalization evidence.
+
+Latency values below come from one fixed-seed run on this environment and can
+vary across runs and machines. The five-seed check reports detection metrics,
+not a latency distribution.
+
+| Measure | Result |
+|---|---:|
+| Events | 986 |
+| Attack events | 86 |
+| Normal events | 900 |
+| Attack scenarios detected | 4 / 4 |
+| Attack-scenario recall | 100.0% |
+| Attack-event recall | 88.4% (76 / 86) |
+| False-positive rate | 0.0% (0 / 900) |
+| Account takeover scenario recall | 100.0% (2 / 2) |
+| API abuse scenario recall | 100.0% (1 / 1) |
+| Automated trading scenario recall | 100.0% (1 / 1) |
+| Mean per-event feature-plus-detector latency | 0.008 ms |
+| 95th percentile per-event feature-plus-detector latency | 0.016 ms |
+
+The recall result is a single fixed-seed run on synthetic data. Four scenarios
+are too few to estimate general performance, and the generator encodes the
+same signals the detector is designed to recognize. The latency measures only
+the in-process feature and detector stages. None of these figures establishes
+production performance or validates the working targets against independent
+data. Latency varies between runs and machines.
+
+The market-time feature uses the NSE regular equity time window of 09:15–15:30
+India Standard Time on weekdays. It does not load the exchange holiday
+calendar, so it is a weekday time-window indicator rather than a live market
+calendar check. [NSE market timings](https://www.nseindia.com/static/market-data/market-timings)

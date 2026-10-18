@@ -69,13 +69,19 @@ completeness since it constrains architecture (see `DESIGN.md`).
 
 ---
 
-## 3. Honest gaps this review will surface
+## 3. Current evidence and gaps
 
-- We do not yet have our own measured recall/FPR/latency numbers — Review 2's prototype exists
-  specifically to start generating them (synthetic generator + statistical baseline, this week).
-- The 80% recall and <10% FPR targets are working numbers we will revise once real baselining
-  data exists, as already flagged in `DECISIONS.md` — Review 2 should be told this directly
-  rather than presenting them as settled.
+- One fixed-seed synthetic baseline is recorded in
+  [`EVALUATION_BASELINE.md`](EVALUATION_BASELINE.md). It measures the current
+  z-score implementation on the generator's own planted patterns; it is not an
+  independent estimate of performance on real or unseen trading behavior.
+- The 80% recall and <10% FPR targets remain working numbers, not guarantees. Report the actual
+  measurements and revise the targets only after broader baselining and independent evaluation.
+- The fixed-seed statistical-versus-ML comparison is implemented and documented in
+  [`EVALUATION_BASELINE.md`](EVALUATION_BASELINE.md). The Forest had 4.7% event recall and
+  5.9% FPR on that run; these figures are synthetic measurements, not broader performance
+  estimates. The Forest is currently an evaluation comparison and is not combined into the
+  `/score` API output.
 - Isolation Forest's own literature performance is dataset-dependent enough that we cannot
   promise 80% recall with confidence yet; our defensible claim is the target's *reasoning*
   (why 80% is a sane starting point given CERT-like precedent), not a guarantee.

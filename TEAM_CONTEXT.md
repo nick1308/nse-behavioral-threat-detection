@@ -1,9 +1,8 @@
 # Project Context for Team Members
 
-**Read this first.** This file exists so any team member — or their own Claude session —
-can get oriented on this project in one read: what we're building, why we made the
-choices we made, exactly what's done, and what's still needed before Review 2 (Sep
-21–25, 2026) and beyond.
+**Read this first.** This file orients team members and AI coding tools on the project,
+its decisions, verified implementation status, and current gaps. Status last checked
+on 2026-10-18; verify the checkout before repeating test or performance claims.
 
 If you're pasting this into your own Claude/ChatGPT session to get help, paste this
 whole file first and say "this is context for a project I'm contributing to."
@@ -25,10 +24,10 @@ studies price/order-book patterns; we study individual account behavior).
 
 ## Why the key decisions were made — read `DECISIONS.md` for full detail, summary here
 
-- **Two-layer detection**: a rolling per-account statistical baseline (z-score, done) as
-  an interpretable floor, plus Isolation Forest (not yet built) as the ML layer.
-  Statistical layer first because it needs no training data and every result can be
-  sanity-checked by hand.
+- **Two-layer detection**: a rolling per-account statistical baseline (z-score, built)
+  as an interpretable floor, plus an Isolation Forest comparison fit on normal-only
+  synthetic histories. `/score` combines layers by maximum score and includes both
+  layer scores. The z-score layer supplies the attack-type guess.
 - **Synthetic, ground-truth-labeled data**, not scraped real market data — legally
   necessary (no NSE ToS violation) and methodologically necessary (no labeled fraud
   ground truth exists in real data; this is standard practice, e.g. the CERT
@@ -36,11 +35,8 @@ studies price/order-book patterns; we study individual account behavior).
 - **Modular monolith**, not microservices — no premature infrastructure; each layer
   (ingestion/features/detection/api) is a separate Python package behind an abstract
   interface so it can be swapped or extracted later without a rewrite.
-- **No UI/dashboard yet, and that's correct, not a gap** — confirmed directly against
-  the official rubric (`docs/REVIEW_SCHEDULE.md`): Review 2 is graded on requirement
-  analysis, system design, component selection, and prototype feasibility. The
-  dashboard becomes rubric-relevant starting Review-IV (Jan 2027) and is expected by
-  Review-V (Mar 2027) — building it now would be effort spent before it's needed.
+- **Dashboard and persistence are deferred** — keep the prototype a measured modular
+  monolith until a course milestone or load test makes those components necessary.
 
 ## Where the numbers come from — every threshold is either cited or flagged as ours
 
@@ -50,60 +46,52 @@ choice, here's why" — **none of these are guaranteed outcomes**, they're worki
 we've committed to revising once we have real measured numbers. If a guide asks "why
 80%?", the honest answer is in that doc — don't claim more certainty than we have.
 
-## What's actually built right now (as of 2026-09-19, commit `a585ede` on `main`)
+## Verified implementation status (2026-10-18)
 
 | Component | Status | File(s) |
 |---|---|---|
 | Requirement analysis | Done | `docs/REQUIREMENTS.md` |
 | System design + architecture diagram | Done | `docs/DESIGN.md` |
 | Literature survey + research gap | Done | `docs/LITERATURE_SURVEY.md` |
-| Synthetic event generator (3 attack types, ground-truth labeled) | Done, 14 tests | `src/threat_detection/ingestion/synthetic.py` |
-| Statistical feature extraction (rolling per-account stats) | Done, 9 tests | `src/threat_detection/features/rolling_stats.py` |
-| Z-score anomaly detector (explainable 0-100 risk score) | Done, 9 tests | `src/threat_detection/detection/zscore.py` |
-| `POST /score` API endpoint (full pipeline wired end-to-end) | Done, 5 tests | `src/threat_detection/api/main.py` |
-| **Total: 37 passing tests**, `pytest` from repo root | | |
+| Synthetic event generator (3 attack types, labeled, fixed-seed reproducible with fixed start time) | Implemented | `src/threat_detection/ingestion/synthetic.py` |
+| Rolling features (quantity/value, device/login context, per-client API rate, matched cancel sequence, market-time context) | Implemented | `src/threat_detection/features/rolling_stats.py` |
+| Explainable z-score detector (risk score and attack-pattern guess) | Implemented | `src/threat_detection/detection/zscore.py` |
+| FastAPI `/health` and `/score` | Implemented | `src/threat_detection/api/main.py` |
+| Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
+| Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
+| **Test suite** | **55 passed, 1 dependency deprecation warning** | `.venv\Scripts\pytest.exe -q`, after API integration |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, or use the
 interactive docs at `http://localhost:8000/docs`.
 
-## What's NOT built yet — this is where team contribution is most needed
+## Current gaps and next work
 
-1. **Isolation Forest detector** (`src/threat_detection/detection/` — interface exists
-   in `base.py`, no concrete implementation yet). This is explicitly future scope per
-   `DESIGN.md`, planned for after Review 2, but someone should start reading up on
-   scikit-learn's `IsolationForest` now.
-2. **The actual Review-2 PPT** (8 mandatory slides, see `docs/REVIEW_SCHEDULE.md` for
-   exact structure/rubric). Content exists in `docs/LITERATURE_SURVEY.md`,
-   `docs/DESIGN.md`, `DECISIONS.md` — needs assembling into slides, and **guide approval
-   is mandatory before the review**, so get this in front of Dr. Karmel A early.
-3. **Autoencoder comparison method** (DECISIONS.md §5) — future scope, not urgent.
-4. **PostgreSQL/Redis persistence** — everything today is in-memory only, intentional
-   for a single-process prototype (DESIGN.md §3), will matter once the system needs to
-   survive a restart or run multi-process.
-5. **React dashboard + WebSocket live feed** — deliberately deferred to the Review-IV/V
-   window (Jan–Mar 2027), not before.
-6. **Evaluation harness**: run the synthetic generator's ground-truth-labeled events
-   through the detector, compute actual precision/recall/FP-rate, compare against the
-   working targets in `docs/REQUIREMENTS.md`. This is what turns "80% recall" from a
-   target into a real, defensible measured number — high-value next step once Isolation
-   Forest exists to compare against the statistical baseline.
+1. **Broader evaluation.** The fixed-seed combined run detects 4/4 synthetic scenarios,
+   with 90.7% event recall and 3.0% FPR. Across five generator seeds, mean FPR is 3.4%
+   and event recall is 90.7%. This is not an independent estimate; hold out attack patterns
+   before making broader claims.
+2. **API end-to-end evaluation.** Current reported latency measures feature extraction plus
+   detector scoring, not request validation, transport, or process startup/model fitting.
+3. **Model lifecycle.** The API fits a demo model from fixed normal-only synthetic histories
+   at module import; persistence, retraining, and loading a real account population remain open.
+4. **Persistence and analyst dashboard.** Remain deferred until required by a milestone
+   or supported by a measured need.
 
 ## Repo map
 
 ```
 docs/REQUIREMENTS.md       -- functional/non-functional requirements, cited
 docs/DESIGN.md              -- architecture diagram, data flow, scoping
-docs/LITERATURE_SURVEY.md   -- research gap, for PPT slides 3-5
-docs/REVIEW_SCHEDULE.md     -- full program rubric + Review-2 PPT structure
 DECISIONS.md                 -- why every technical choice was made, with citations
 EVENT_SCHEMA.md               -- the event contract every layer is built against
 src/threat_detection/
   ingestion/synthetic.py    -- generates events + plants attacks
   features/rolling_stats.py -- turns events into behavioral feature vectors
   detection/zscore.py       -- scores features, explains the score
-  api/main.py                -- POST /score wires it all together
-tests/                        -- one test dir per layer, 37 tests total
+  evaluation/                -- ground-truth-safe replay and baseline report
+  api/main.py                -- /health and /score wire the pipeline
+tests/                        -- focused tests per layer and evaluation scenario
 ```
 
 ## Ground rules if you're picking up work here
@@ -111,9 +99,9 @@ tests/                        -- one test dir per layer, 37 tests total
 - **Don't let the detection pipeline see `is_attack`/`attack_type`** — those fields
   exist only for evaluation, and a detector that reads them is solving a fake, trivial
   problem. See the module docstring in `synthetic.py`.
-- **Every new dependency needs sign-off first** — don't `pip install` something new
-  without checking with the team (this was Ankit's explicit rule from day one).
-- **Run `pytest` before committing** — 37 tests currently pass; don't merge something
+- **Every new dependency needs sign-off first** — scikit-learn was approved for the current
+  Isolation Forest comparison.
+- **Run `pytest` before committing** — 55 tests passed on 2026-10-18; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

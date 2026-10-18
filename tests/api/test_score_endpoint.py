@@ -24,9 +24,11 @@ def test_score_endpoint_returns_expected_shape():
     response = client.post("/score", json=_order_event())
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"risk_score", "explanation", "attack_type_guess"}
+    assert set(body.keys()) == {"risk_score", "explanation", "attack_type_guess", "layer_scores"}
     assert isinstance(body["risk_score"], (int, float))
     assert isinstance(body["explanation"], str)
+    assert set(body["layer_scores"]) == {"zscore", "isolation_forest"}
+    assert body["risk_score"] == max(body["layer_scores"].values())
 
 
 def test_first_event_for_a_new_account_is_low_risk():
@@ -60,6 +62,11 @@ def test_state_persists_across_requests_for_the_same_account():
 def test_score_endpoint_rejects_missing_required_fields():
     incomplete = {"account_id": "ACC1"}  # missing event_id, timestamp, etc.
     response = client.post("/score", json=incomplete)
+    assert response.status_code == 422
+
+
+def test_score_endpoint_rejects_ground_truth_fields():
+    response = client.post("/score", json={**_order_event(), "is_attack": True, "attack_type": "api_abuse"})
     assert response.status_code == 422
 
 

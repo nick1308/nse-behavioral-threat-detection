@@ -79,7 +79,7 @@ others — e.g. swapping the synthetic generator for a real feed later only touc
 
 ## 3. What's implemented, abstract, and still required
 
-- `NormalizedEvent` is the shared broker-neutral contract. `ConfiguredFieldMapAdapter` handles flat field/type aliases and can be enabled for `/score/source` with startup environment settings; `BrokerEventAdapter` is the extension point for custom mappings. No provider-specific mapping or connection is implemented.
+- `NormalizedEvent` is the shared broker-neutral contract. `ConfiguredFieldMapAdapter` handles flat field/type aliases and can be enabled for `/score/source` with startup environment settings plus a bearer key; `BrokerEventAdapter` is the extension point for custom mappings. No provider-specific mapping or connection is implemented.
 - The `EventSource`, `FeatureExtractor`, and `AnomalyDetector` base classes are abstract contracts, not runnable implementations.
 - Concrete implementations exist for the synthetic source, rolling statistics extractor, z-score detector, Isolation Forest detector, and max-score ensemble.
 - Autoencoder comparison method (`DECISIONS.md` §5)
@@ -95,7 +95,8 @@ The backend and dashboard demonstrate feasibility, not broker deployment. There 
 broker data source or production deployment; only the compact score history persists locally.
 The broker must provide an authorized adapter that maps its telemetry to the normalized event
 contract. The local SQLite database has no authentication or encryption and must not be
-exposed as production broker storage. See `PROGRESS.md` for remaining work and
+exposed as production broker storage. The source endpoint's configured bearer key is a
+development safeguard, not production identity management. See `PROGRESS.md` for remaining work and
 `EVALUATION_BASELINE.md` for detector measurements and caveats.
 
 ## 4. Component selection summary

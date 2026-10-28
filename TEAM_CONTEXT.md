@@ -2,7 +2,7 @@
 
 **Read this first.** This file orients team members and AI coding tools on the project,
 its decisions, verified implementation status, and current gaps. Status last checked
-on 2026-10-18; verify the checkout before repeating test or performance claims.
+on 2026-10-28; verify the checkout before repeating test or performance claims.
 
 If you're pasting this into your own Claude/ChatGPT session to get help, paste this
 whole file first and say "this is context for a project I'm contributing to."
@@ -58,21 +58,22 @@ we've committed to revising once we have real measured numbers. If a guide asks 
 | System design + architecture diagram | Done | `docs/DESIGN.md` |
 | Literature references and rationale | Partial; no standalone survey document | `DECISIONS.md`, `docs/REQUIREMENTS.md` |
 | Synthetic event generator (3 attack types, labeled, fixed-seed reproducible with fixed start time) | Implemented | `src/threat_detection/ingestion/synthetic.py` |
-| Canonical event model and broker mapping | Reusable model, flat-field adapter, and optional configured `/score/source` path implemented; no provider-specific mapping or connection | `src/threat_detection/ingestion/schema.py`, `src/threat_detection/ingestion/base.py`, `src/threat_detection/api/main.py` |
+| Canonical event model and broker mapping | Reusable model, flat-field adapter, and optional bearer-protected configured `/score/source` path implemented; no provider-specific mapping or connection | `src/threat_detection/ingestion/schema.py`, `src/threat_detection/ingestion/base.py`, `src/threat_detection/api/main.py` |
 | Rolling features (quantity/value, device/login context, per-client API rate, matched cancel sequence, market-time context) | Implemented | `src/threat_detection/features/rolling_stats.py` |
 | Explainable z-score detector (risk score and attack-pattern guess) | Implemented | `src/threat_detection/detection/zscore.py` |
 | FastAPI `/health`, `/score`, SQLite event history, synthetic replay, dashboard JSON event submission | Implemented for local demo; no provider-specific broker integration | `src/threat_detection/api/main.py`, `src/threat_detection/api/event_store.py`, `src/threat_detection/api/static/` |
 | Synthetic evaluation harness | Implemented; scenario and event metrics recorded | `src/threat_detection/evaluation/`, `docs/EVALUATION_BASELINE.md` |
 | Isolation Forest and score combiner | Implemented in evaluation and `/score`; fixed-seed normal-only fit and calibration streams | `src/threat_detection/detection/`, `src/threat_detection/api/main.py` |
-| **Test suite** | **96 passed, 1 dependency deprecation warning** | Verified 2026-10-18 with `.venv\Scripts\python.exe -m pytest -q` |
+| **Test suite** | **100 passed, 1 dependency deprecation warning** | Verified 2026-10-28 with `.venv\Scripts\python.exe -m pytest -q` |
 
 Run it yourself: `uvicorn threat_detection.api.main:app --app-dir src --reload`, then
 POST an event (shape in `EVENT_SCHEMA.md`) to `http://localhost:8000/score`, use the
 interactive docs at `http://localhost:8000/docs`, or open the analyst dashboard at
 `http://localhost:8000/` to run the synthetic replay or submit a normalized event.
 Broker source fields can be mapped with `THREAT_DETECTION_FIELD_MAP` and
-`THREAT_DETECTION_EVENT_TYPE_MAP` for `/score/source`; this demo does not connect
-to a broker. See `EVENT_SCHEMA.md` for the mapping boundary and limitations.
+`THREAT_DETECTION_EVENT_TYPE_MAP`, and the route requires `THREAT_DETECTION_API_KEY`.
+This demo does not connect to a broker. See `EVENT_SCHEMA.md` for the mapping
+boundary and limitations.
 
 ## Current gaps and next work
 
@@ -125,7 +126,7 @@ are supporting validation, not the project's purpose. The historical materials i
   problem. See the module docstring in `synthetic.py`.
 - **Every new dependency needs sign-off first** — scikit-learn was approved for the current
   Isolation Forest comparison.
-- **Run `pytest` before committing** — 96 tests passed on 2026-10-18; don't merge something
+- **Run `pytest` before committing** — 100 tests passed on 2026-10-28; don't merge something
   that breaks them.
 - **Cite real numbers, don't invent them** — if you add a new threshold or claim
   (recall, latency, whatever), either find a source or mark it explicitly as "our own

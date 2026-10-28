@@ -81,9 +81,10 @@ startup; `THREAT_DETECTION_EVENT_TYPE_MAP` can translate source event names.
 Mappings use JSON objects from canonical field name to source field name, and
 from source event-type alias to canonical event type. The endpoint handles flat
 records only; nested or value-transforming payloads need a custom
-`BrokerEventAdapter`. No provider-specific mapping, broker credentials, polling,
-or live broker connection is included. The endpoint is unauthenticated and is
-intended for local integration development, not direct public exposure.
+`BrokerEventAdapter`. No provider-specific mapping, broker connection, or
+polling is included. The endpoint requires a configured bearer key and is
+intended for local integration development; its static key check is not
+production identity management.
 The model validates the event type and rejects undeclared fields. Type-specific
 attributes are optional because adapters may have partial telemetry; each
 detector must treat missing signals as unavailable, not as proof of normal or

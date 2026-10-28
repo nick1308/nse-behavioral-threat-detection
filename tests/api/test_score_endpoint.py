@@ -6,6 +6,7 @@ from threat_detection.api.event_store import SQLiteEventStore
 from threat_detection.api.main import app
 
 client = TestClient(app)
+_TEST_SOURCE_API_KEY = "api-test-token-not-for-production"
 
 
 def _order_event(**overrides):
@@ -77,6 +78,7 @@ def test_configured_source_event_is_mapped_scored_and_recorded(monkeypatch):
     )
     monkeypatch.setenv("THREAT_DETECTION_EVENT_TYPE_MAP", '{"TRADE_EXECUTED":"ORDER"}')
     monkeypatch.setattr(main, "_broker_event_adapter", main._build_source_adapter())
+    monkeypatch.setattr(main, "_source_api_key", _TEST_SOURCE_API_KEY)
     source_event = {
         "id": "broker-event-1",
         "trading_account": "BROKER-ACCOUNT-1",
@@ -88,7 +90,11 @@ def test_configured_source_event_is_mapped_scored_and_recorded(monkeypatch):
         "is_attack": True,
     }
 
-    response = client.post("/score/source", json=source_event)
+    response = client.post(
+        "/score/source",
+        json=source_event,
+        headers={"Authorization": f"Bearer {_TEST_SOURCE_API_KEY}"},
+    )
 
     assert response.status_code == 200
     history = client.get("/events?limit=10").json()["events"]
@@ -104,6 +110,37 @@ def test_source_scoring_is_disabled_without_mapping_configuration():
 
     assert response.status_code == 503
     assert response.json()["detail"] == "No source field mapping is configured for this endpoint."
+
+
+def test_source_scoring_requires_api_key_configuration(monkeypatch):
+    monkeypatch.setenv("THREAT_DETECTION_FIELD_MAP", '{"event_id":"id"}')
+    monkeypatch.setattr(main, "_broker_event_adapter", main._build_source_adapter())
+    monkeypatch.setattr(main, "_source_api_key", None)
+
+    response = client.post("/score/source", json={"id": "event"})
+
+    assert response.status_code == 503
+    assert "THREAT_DETECTION_API_KEY" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [None, "Bearer wrong-token", "Basic api-test-token-not-for-production"],
+)
+def test_source_scoring_rejects_missing_or_invalid_bearer_key(monkeypatch, authorization):
+    monkeypatch.setenv("THREAT_DETECTION_FIELD_MAP", '{"event_id":"id"}')
+    monkeypatch.setattr(main, "_broker_event_adapter", main._build_source_adapter())
+    monkeypatch.setattr(main, "_source_api_key", _TEST_SOURCE_API_KEY)
+    headers = {"Authorization": authorization} if authorization else None
+
+    response = client.post(
+        "/score/source",
+        json={"id": "event"},
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 def test_invalid_source_mapping_configuration_is_rejected(monkeypatch):

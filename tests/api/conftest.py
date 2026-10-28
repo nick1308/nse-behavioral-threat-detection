@@ -10,6 +10,7 @@ def pytest_configure(config):
     os.environ["THREAT_DETECTION_DB_PATH"] = ":memory:"
     os.environ["THREAT_DETECTION_FIELD_MAP"] = ""
     os.environ["THREAT_DETECTION_EVENT_TYPE_MAP"] = ""
+    os.environ["THREAT_DETECTION_API_KEY"] = ""
 
 
 @pytest.fixture(autouse=True)
@@ -20,5 +21,6 @@ def isolate_api_event_history(monkeypatch):
     event_store = SQLiteEventStore(":memory:")
     monkeypatch.setattr(main, "_event_store", event_store)
     monkeypatch.setattr(main, "_broker_event_adapter", None)
+    monkeypatch.setattr(main, "_source_api_key", None)
     yield
     event_store.close()

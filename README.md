@@ -89,13 +89,16 @@ before starting the API. This example expects `id`, `trading_account`,
 ```powershell
 $env:THREAT_DETECTION_FIELD_MAP = '{"event_id":"id","account_id":"trading_account","timestamp":"occurred_at","event_type":"action","session_id":"session","order_value":"amount"}'
 $env:THREAT_DETECTION_EVENT_TYPE_MAP = '{"TRADE_EXECUTED":"ORDER"}'
+$env:THREAT_DETECTION_API_KEY = (& .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))").Trim()
 ```
 
 In the same PowerShell session, start the API with the command above. Then send
 a flat mapped event to `POST /score/source`. The route is disabled
-without a mapping. It does not establish a broker connection, authenticate a
-caller, or support nested payload transformations; keep it local unless access
-controls are added.
+without a mapping and bearer key. Send the key in the `Authorization: Bearer`
+header. The route does not establish a broker connection or support nested
+payload transformations. The static key gate is a local integration safeguard,
+not production identity management; use a managed authentication layer before
+exposing the API to a broker network.
 
 Then open `http://localhost:8000/docs` or check `http://localhost:8000/health`.
 The analyst dashboard is at `http://localhost:8000/`.

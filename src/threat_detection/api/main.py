@@ -13,13 +13,14 @@ would have no history to compare against and every event would look
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -75,6 +76,7 @@ def _build_source_adapter() -> ConfiguredFieldMapAdapter | None:
 
 
 _broker_event_adapter = _build_source_adapter()
+_source_api_key = (os.environ.get("THREAT_DETECTION_API_KEY") or "").strip() or None
 
 
 def _build_detector() -> ZScoreIsolationForestEnsemble:
@@ -200,16 +202,38 @@ def score_event(event: EventIn) -> dict[str, Any]:
 
 
 @app.post("/score/source", response_model=ScoreOut)
-def score_source_event(source_event: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def score_source_event(
+    source_event: dict[str, Any] = Body(...),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
     """Map a configured flat broker record, then score its normalized event.
 
-    This endpoint does not connect to a broker or authenticate callers. It is
-    disabled unless a deployment configures its source-field mapping at start.
+    This endpoint does not connect to a broker. It is disabled unless a
+    deployment configures both a source-field mapping and bearer API key.
     """
     if _broker_event_adapter is None:
         raise HTTPException(
             status_code=503,
             detail="No source field mapping is configured for this endpoint.",
+        )
+    if _source_api_key is None or not _source_api_key.strip():
+        raise HTTPException(
+            status_code=503,
+            detail="Source scoring requires THREAT_DETECTION_API_KEY configuration.",
+        )
+    scheme, _, provided_api_key = (authorization or "").partition(" ")
+    if (
+        scheme.lower() != "bearer"
+        or not provided_api_key
+        or not hmac.compare_digest(
+            provided_api_key.strip().encode("utf-8"),
+            _source_api_key.encode("utf-8"),
+        )
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Valid bearer authorization is required.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     try:
         normalized_event = _broker_event_adapter.normalize(source_event)

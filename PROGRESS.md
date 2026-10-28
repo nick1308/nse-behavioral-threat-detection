@@ -1,6 +1,6 @@
 # Project status and finish plan
 
-Status checked: 2026-10-18. This is the living product-status page. Files in
+Status checked: 2026-10-28. This is the living product-status page. Files in
 `Claude outputs/` are historical Review II snapshots, not current product evidence.
 
 ## Progress at a glance
@@ -15,7 +15,7 @@ stronger validation remain.
 | Detection backend | `████████░░` 80% | Scoring pipeline and tests exist; Isolation Forest contribution and model lifecycle need more validation |
 | Analyst UI | `████████░░` 80% | Dashboard supports seeded replay and one normalized event submission, with risk reasons, filters, and history; visual/user review remains |
 | End-to-end product workflow | `███████░░░` 70% | UI submits normalized events; optional configured flat-field `/score/source` maps and scores source records; per-account feature state and provider-specific feed remain unimplemented |
-| Reliability and validation | `██████░░░░` 60% | 96 tests pass; SQLite restart history, isolated demo replay, configured source mapping, curated attack variations, and one constructed benign MFA case are checked; independent attack data and deployment checks remain |
+| Reliability and validation | `██████░░░░` 60% | 100 tests pass; SQLite restart history, isolated demo replay, configured and bearer-protected source mapping, curated attack variations, and one constructed benign MFA case are checked; independent attack data and deployment checks remain |
 | Report/demo readiness | `███░░░░░░░` 30% | Status docs refreshed; guided live walkthrough and final report materials remain |
 
 The overall estimate is a rough product-readiness estimate weighted toward
@@ -34,7 +34,7 @@ are not general validation.
 - FastAPI `/health` and `/score`; `/score` rejects evaluation labels and returns
   an explainable risk score, layer scores, and a z-score pattern guess.
 - A synthetic replay/evaluation harness and automated tests. Latest test run:
-  96 passed with one Starlette deprecation warning. Fixed-seed measurements and
+  100 passed with one Starlette deprecation warning. Fixed-seed measurements and
   caveats are in `docs/EVALUATION_BASELINE.md`.
 - Docker packaging files exist. Docker CLI is present, but the Docker engine is
   unavailable in this environment, so an image build remains unverified.
@@ -44,7 +44,9 @@ are not general validation.
   also accepts one canonical normalized event as JSON and displays the saved
   score and explanation. Broker source records still need a deployment-specific
   mapping before submission; an optional configured `/score/source` endpoint
-  now runs flat-field mappings through the same scoring path. Scored summaries
+  now authenticates with a configured bearer key and runs flat-field mappings
+  through the same scoring path. This is a local integration safeguard, not
+  production identity management. Scored summaries
   persist in local SQLite at
   `data/events.sqlite3` by default (override with `THREAT_DETECTION_DB_PATH`),
   capped at 500. Raw payloads and ground-truth labels are not stored. Rolling
@@ -75,8 +77,9 @@ are not general validation.
 
 1. **Complete the broker event boundary.** The canonical normalized event model,
    adapter contract, and reusable flat-field mapping adapter exist. An optional
-   `/score/source` endpoint uses configured flat-field mappings. Configure and
-   validate a provider mapping only after choosing a provider and receiving its
+   `/score/source` endpoint uses configured flat-field mappings and bearer-key
+   authorization. Configure and validate a provider mapping only after choosing
+   a provider and receiving its
    authorized event schema. The demo uses `SyntheticEventSource`; no live
    integration is claimed.
 2. **Refine the risk assessment.** Keep explanations tied to observable signals,
